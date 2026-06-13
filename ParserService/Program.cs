@@ -1,17 +1,28 @@
+using dotenv.net;
+using Microsoft.EntityFrameworkCore;
+using ParserService.Data;
+using Scalar.AspNetCore;
+
+DotEnv.Load(new DotEnvOptions().WithProbeForEnv());
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+var connectionString = builder.Configuration.GetConnectionString("PostgresConnection");
+
+builder.Services.AddDatabaseContext(builder.Configuration);
+
 
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+app.ApplyMigrations();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();

@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  parser-db:
+    image: postgres:15-alpine
+    container_name: tour_parser_postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - pg_parser_data:/var/lib/postgresql/data
+
+volumes:
+  pg_parser_data:
+  

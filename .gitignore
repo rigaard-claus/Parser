@@ -14,3 +14,6 @@ Thumbs.db
 
 ## Ignore Docker temp files
 .dockerignore
+
+# Секреты локальной разработки
+.env

@@ -1,5 +1,6 @@
 using dotenv.net;
 using Microsoft.EntityFrameworkCore;
+using NATS.Net;
 using ParserService.Data;
 using Scalar.AspNetCore;
 
@@ -14,6 +15,13 @@ builder.Services.AddDatabaseContext(builder.Configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+
+builder.Services.AddAutoMapper(typeof(ParserService.Mappings.MappingProfile).Assembly);
+
+var natsUrl = builder.Configuration.GetConnectionString("NatsConnection") ?? "nats://localhost:4222";
+
+var natsClient = new NatsClient(natsUrl);
+builder.Services.AddSingleton(natsClient);
 
 var app = builder.Build();
 
@@ -30,5 +38,10 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.MapGet("/", context => {
+    context.Response.Redirect("/scalar/v1");
+    return Task.CompletedTask;
+});
 
 app.Run();

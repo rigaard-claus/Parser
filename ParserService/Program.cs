@@ -2,6 +2,9 @@ using dotenv.net;
 using Microsoft.EntityFrameworkCore;
 using NATS.Net;
 using ParserService.Data;
+using ParserService.ParserCore;
+using ParserService.ParserCore.Engine.Parsers.Dertour;
+using ParserService.ParserCore.Interfaces;
 using Scalar.AspNetCore;
 
 DotEnv.Load(new DotEnvOptions().WithProbeForEnv());
@@ -22,6 +25,9 @@ var natsUrl = builder.Configuration.GetConnectionString("NatsConnection") ?? "na
 
 var natsClient = new NatsClient(natsUrl);
 builder.Services.AddSingleton(natsClient);
+
+builder.Services.AddScoped<ITourOperatorParser, DertourParser>();
+builder.Services.AddScoped<ParserFactory>();
 
 var app = builder.Build();
 

@@ -9,7 +9,10 @@ using ParserService.Application.Services;
 using ParserService.Data;
 using ParserService.ParserCore;
 using ParserService.ParserCore.Engine.Parsers.Dertour;
+using ParserService.ParserCore.Http;
 using ParserService.ParserCore.Interfaces;
+using ParserService.ParserCore.Processing;
+using ParserService.ParserCore.References;
 using Scalar.AspNetCore;
 using System.Text.Json;
 
@@ -20,8 +23,6 @@ var stage = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Dev
 DotEnv.Load(new DotEnvOptions().WithProbeForEnv());
 
 var builder = WebApplication.CreateBuilder(args);
-
-var connectionString = builder.Configuration.GetConnectionString("PostgresConnection");
 
 builder.Services.AddDatabaseContext(builder.Configuration);
 
@@ -48,19 +49,20 @@ builder.Services.AddScoped<ParserFactory>();
 
 builder.Services.AddScoped<OperatorConfigurationService>();
 builder.Services.AddScoped<GetOperatorsHandler>();
+builder.Services.AddScoped<UpdateReferencesHandler>();
 builder.Services.AddHostedService<NatsSubscriptionWorker>();
 builder.Services.AddSingleton<INatsBus, NatsBus>();
 
-WebApplication app = null;
-try
+builder.Services.AddSingleton<IPlaywrightProvider>(sp =>
 {
-    app = builder.Build();
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"Error building the application: {ex.Message}");
-    throw;
-}
+    var provider = new PlaywrightProvider();
+    provider.InitializeAsync().GetAwaiter().GetResult();
+    return provider;
+});
+builder.Services.AddScoped<IPageProcessor, PageProcessor>();
+builder.Services.AddScoped<ReferenceProcessor>();
+
+WebApplication app = builder.Build();
 
 app.ApplyMigrations();
 

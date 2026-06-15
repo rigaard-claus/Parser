@@ -1,6 +1,7 @@
 ﻿using ParserService.Application.Handlers.Operators;
 using ParserService.Application.Models.Answers;
 using ParserService.Application.Models.Requests;
+using ParserService.ParserCore.References;
 
 namespace ParserService.Application.Messaging
 {
@@ -20,6 +21,16 @@ namespace ParserService.Application.Messaging
                     var response = await handler.HandleAsync(request);
                     logger.LogInformation("NATS [OUT] Отправлен ответ: {@Response}", response);
                     return response;
+                });
+
+                await natsBus.SubscribeAsync<UpdateReferencesHandler, UpdateReferencesRequest, UpdateReferencesAnswer>(async (request) =>
+                {
+                    logger.LogInformation("NATS [IN] Получена команда на обновление справочников.");
+
+                    using var scope = serviceProvider.CreateScope();
+                    var handler = scope.ServiceProvider.GetRequiredService<UpdateReferencesHandler>();
+
+                    return await handler.HandleAsync(request);
                 });
 
                 // Удерживаем воркер активным, пока приложение работает

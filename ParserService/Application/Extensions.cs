@@ -4,11 +4,11 @@
     {
         public static class NatsSubjectBuilder
         {
-            public static string GetSubject<THandler>()
+            public static string GetSubject<T>()
             {
-                var name = typeof(THandler).Name.Replace("Handler", "");
-
-                return name.ToLower();
+                var type = typeof(T);
+                string fullName = type.FullName ?? type.Name;
+                return fullName.Replace(".", "_").ToLower();
             }
         }
     }

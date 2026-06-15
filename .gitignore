@@ -17,3 +17,6 @@ Thumbs.db
 
 # Секреты локальной разработки
 .env
+
+project_map.txt
+output.txt

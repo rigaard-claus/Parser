@@ -4,42 +4,76 @@ using ParserService.Application.Services;
 
 namespace ParserService.Application.Messaging
 {
-    public class NatsBus(NatsConnection connection, IServiceScopeFactory scopeFactory) : INatsBus
+    public class NatsBus(
+        NatsConnection connection,
+        IServiceScopeFactory scopeFactory,
+        ILogger<NatsBus> logger) : INatsBus
     {
         public async Task<TResponse> RequestAsync<THandler, TRequest, TResponse>(TRequest request)
         {
+            var subject = Extensions.GetSubject<THandler>();
             try
             {
-                var subject = Extensions.NatsSubjectBuilder.GetSubject<THandler>();
-                var reply = await connection.RequestAsync<TRequest, TResponse>(subject, request);
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                var reply = await connection.RequestAsync<TRequest, TResponse>(subject, request, cancellationToken: cts.Token);
                 return reply.Data!;
             }
-            catch (Exception ex)
+            catch (NatsNoRespondersException)
             {
-                await LogErrorInternal(ex.Message, ex.StackTrace);
-                throw;
+                logger.LogError("NATS: Нет слушателей для топика: {Subject}", subject);
+                throw new Exception($"Нет активных воркеров для {subject}");
             }
         }
 
         public async Task SubscribeAsync<THandler, TRequest, TResponse>(Func<TRequest, Task<TResponse>> handler)
         {
-            try
-            {
-                var subject = Extensions.NatsSubjectBuilder.GetSubject<THandler>();
-                await foreach (var msg in connection.SubscribeAsync<TRequest>(subject))
-                {
-                    var response = await handler(msg.Data!);
+            var subject = Extensions.GetSubject<THandler>();
+            await RunSubscriptionLoop(subject, handler);
+        }
 
-                    if (!string.IsNullOrEmpty(msg.ReplyTo))
+        public async Task SubscribeRawAsync<TReq, TRes>(string subject, Func<TReq, Task<TRes>> handler, bool isBackground)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await RunSubscriptionLoop(subject, handler);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[CRITICAL] Ошибка в цикле подписки {subject}: {ex.Message}");
+                }
+            });
+
+            await Task.CompletedTask;
+        }
+
+        private async Task RunSubscriptionLoop<TReq, TRes>(string subject, Func<TReq, Task<TRes>> handler)
+        {
+            while (true)
+            {
+                try
+                {
+                    logger.LogInformation("NATS: Подписка на {Subject} активна", subject);
+                    await foreach (var msg in connection.SubscribeAsync<TReq>(subject))
                     {
-                        await connection.PublishAsync(msg.ReplyTo, response);
+                        try
+                        {
+                            var response = await handler(msg.Data!);
+                            if (!string.IsNullOrEmpty(msg.ReplyTo))
+                                await connection.PublishAsync(msg.ReplyTo, response);
+                        }
+                        catch (Exception ex)
+                        {
+                            await LogErrorInternal($"Ошибка хендлера {subject}: {ex.Message}", ex.StackTrace ?? "");
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                await LogErrorInternal(ex.Message, ex.StackTrace);
-                throw;
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Ошибка подписки на {Subject}, реконнект...", subject);
+                    await Task.Delay(5000);
+                }
             }
         }
 
@@ -51,8 +85,8 @@ namespace ParserService.Application.Messaging
         private async Task LogErrorInternal(string message, string stack)
         {
             using var scope = scopeFactory.CreateScope();
-            var logger = scope.ServiceProvider.GetRequiredService<ErrorLoggingService>();
-            await logger.LogErrorAsync(message, stack);
+            var loggerService = scope.ServiceProvider.GetRequiredService<ErrorLoggingService>();
+            await loggerService.LogErrorAsync(message, stack);
         }
     }
 }

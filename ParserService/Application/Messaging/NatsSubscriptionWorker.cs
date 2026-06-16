@@ -1,48 +1,30 @@
-﻿using ParserService.Application.Handlers.Operators;
-using ParserService.Application.Models.Answers;
-using ParserService.Application.Models.Requests;
-using ParserService.ParserCore.References;
-
-namespace ParserService.Application.Messaging
+﻿namespace ParserService.Application.Messaging
 {
-    public class NatsSubscriptionWorker(INatsBus natsBus, IServiceProvider serviceProvider, ILogger<NatsSubscriptionWorker> logger) : BackgroundService
+    public class NatsSubscriptionWorker(
+        INatsBus natsBus,
+        IServiceProvider serviceProvider,
+        ISubscriptionRegistrar registrar,
+        ILogger<NatsSubscriptionWorker> logger) : BackgroundService
     {
+        // Сигнал, что подписки готовы
+        public static readonly TaskCompletionSource Ready = new();
+
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             try
             {
-                logger.LogInformation("Инициализация подписки NATS...");
+                logger.LogInformation("NATS Worker: Инициализация подписок...");
+                await registrar.RegisterAllAsync(natsBus, serviceProvider);
 
-                await natsBus.SubscribeAsync<GetOperatorsHandler, GetOperatorsRequest, GetOperatorsAnswer>(async (request) =>
-                {
-                    logger.LogInformation("NATS [IN] Получен запрос: {@Request}", request);
-                    using var scope = serviceProvider.CreateScope();
-                    var handler = scope.ServiceProvider.GetRequiredService<GetOperatorsHandler>();
-                    var response = await handler.HandleAsync(request);
-                    logger.LogInformation("NATS [OUT] Отправлен ответ: {@Response}", response);
-                    return response;
-                });
+                logger.LogInformation("NATS Worker: Все подписки активны.");
+                Ready.TrySetResult(); // Сигнализируем, что мы готовы принимать запросы
 
-                await natsBus.SubscribeAsync<UpdateReferencesHandler, UpdateReferencesRequest, UpdateReferencesAnswer>(async (request) =>
-                {
-                    logger.LogInformation("NATS [IN] Получена команда на обновление справочников.");
-
-                    using var scope = serviceProvider.CreateScope();
-                    var handler = scope.ServiceProvider.GetRequiredService<UpdateReferencesHandler>();
-
-                    return await handler.HandleAsync(request);
-                });
-
-                // Удерживаем воркер активным, пока приложение работает
                 await Task.Delay(Timeout.Infinite, stoppingToken);
-            }
-            catch (OperationCanceledException)
-            {
-                logger.LogInformation("Подписка NATS остановлена.");
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Критическая ошибка в NatsSubscriptionWorker");
+                Ready.TrySetException(ex);
             }
         }
     }

@@ -1,0 +1,14 @@
+﻿namespace ParserService.ParserCore.Models
+{
+    public class OperatorOptions
+    {
+        public string OperatorName { get; set; }
+        public int Priority { get; set; }
+        public string BaseUrl { get; set; }
+        public string HomePage { get; set; }
+        public string DepartureReferenceUrl { get; set; }
+        public string CountryReferenceUrl { get; set; }
+        public string RegionReferenceUrl { get; set; }
+        public string HotelReferenceUrl { get; set; }
+    }
+}

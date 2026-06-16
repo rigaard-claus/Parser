@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.Serializers.Json;
+using ParserService.Application.Handlers;
 using ParserService.Application.Handlers.Operators;
 using ParserService.Application.Infrastructure;
 using ParserService.Application.Mapping;
@@ -41,7 +42,8 @@ builder.Services.AddSingleton(sp =>
         Name = $"[{stage}][{hostName}][PID:{processId}] ParserService",
         Url = natsUrl,
         SerializerRegistry = new NatsJsonContextOptionsSerializerRegistry(new JsonSerializerOptions()),
-        ConnectTimeout = TimeSpan.FromSeconds(30)
+        ConnectTimeout = TimeSpan.FromSeconds(30),
+        LoggerFactory = LoggerFactory.Create(logging => logging.AddConsole())
     };
     return new NatsConnection(natsOpts);
 });
@@ -58,9 +60,11 @@ builder.Services.AddScoped<ParserFactory>();
 
 builder.Services.AddScoped<OperatorConfigurationService>();
 builder.Services.AddScoped<GetOperatorsHandler>();
+builder.Services.AddScoped<ParserRunnerHandler>();
 builder.Services.AddScoped<UpdateReferencesHandler>();
 builder.Services.AddHostedService<NatsSubscriptionWorker>();
 builder.Services.AddSingleton<INatsBus, NatsBus>();
+builder.Services.AddSingleton<ISubscriptionRegistrar, SubscriptionRegistrar>();
 
 builder.Services.AddSingleton<IPlaywrightProvider>(sp =>
 {

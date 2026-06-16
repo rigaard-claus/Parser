@@ -1,4 +1,5 @@
 ﻿using Microsoft.Playwright;
+using ParserService.ParserCore.Models;
 using ParserService.ParserCore.Processing;
 
 namespace ParserService.ParserCore.References.Providers
@@ -6,6 +7,7 @@ namespace ParserService.ParserCore.References.Providers
     public class DertourReferenceProvider : IReferenceProvider
     {
         private readonly IPageProcessor _pageProcessor;
+
         public string OperatorName => "DERTOUR_DE";
 
         public DertourReferenceProvider(IPageProcessor pageProcessor)
@@ -13,13 +15,32 @@ namespace ParserService.ParserCore.References.Providers
             _pageProcessor = pageProcessor;
         }
 
+        public OperatorOptions GetOptions()
+        {
+            return new OperatorOptions
+            {
+                OperatorName = "DERTOUR Germany",
+                Priority = 10,
+                BaseUrl =  "https://www.dertour.de",
+                DepartureReferenceUrl = "https://www.dertour.de",
+                CountryReferenceUrl = "",
+                RegionReferenceUrl = "",
+                HotelReferenceUrl = ""
+            };
+        }
+
         public async Task UpdateReferencesAsync(IPage page)
         {
-            // 1. Получаем "сырой" HTML страницы с помощью нашего процессора
-            var html = await _pageProcessor.GetPageContentAsync("https://www.dertour.de/");
+            var options = GetOptions();
+            var targetUrl = $"{options.BaseUrl}{options.DepartureReferenceUrl}";
 
-            // 2. Используем Playwright для парсинга HTML
-            // (или даже проще - пробрасываем страницу внутрь, чтобы не парсить строку)
+            // Переходим по ссылке, взятой из опций
+            await page.GotoAsync(targetUrl);
+
+            // Твой тестовый парсинг
+            // Например: await page.WaitForSelectorAsync(".departure-list");
+            // var content = await page.ContentAsync();
+            // ...
         }
     }
 }

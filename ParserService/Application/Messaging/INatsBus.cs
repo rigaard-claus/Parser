@@ -4,11 +4,13 @@ namespace ParserService.Application.Messaging
 {
     public interface INatsBus
     {
-        // Отправка запроса с ожиданием ответа (Request-Reply)
         Task<TResponse> RequestAsync<THandler, TRequest, TResponse>(TRequest request);
 
-        // Подписка на тему для обработки запросов
+        // Метод для подписки, который использует наш Registrar
         Task SubscribeAsync<THandler, TRequest, TResponse>(Func<TRequest, Task<TResponse>> handler);
+
+        // Низкоуровневый метод для авто-регистрации
+        Task SubscribeRawAsync<TReq, TRes>(string subject, Func<TReq, Task<TRes>> handler, bool isBackground);
 
         Task PublishErrorAsync(LogErrorRequest request);
     }

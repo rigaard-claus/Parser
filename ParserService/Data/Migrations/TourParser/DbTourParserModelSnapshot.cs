@@ -2,21 +2,18 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ParserService.Data.Contexts;
 
 #nullable disable
 
-namespace ParserService.Data.Migrations
+namespace ParserService.Data.Migrations.TourParser
 {
     [DbContext(typeof(DbTourParser))]
-    [Migration("20260613154048_InitialTourParserDb")]
-    partial class InitialTourParserDb
+    partial class DbTourParserModelSnapshot : ModelSnapshot
     {
-        /// <inheritdoc />
-        protected override void BuildTargetModel(ModelBuilder modelBuilder)
+        protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

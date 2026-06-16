@@ -1,4 +1,6 @@
-﻿namespace ParserService.Application.Messaging
+﻿using ParserService.Application.Models.Messages;
+
+namespace ParserService.Application.Messaging
 {
     public interface INatsBus
     {
@@ -7,5 +9,7 @@
 
         // Подписка на тему для обработки запросов
         Task SubscribeAsync<THandler, TRequest, TResponse>(Func<TRequest, Task<TResponse>> handler);
+
+        Task PublishErrorAsync(LogErrorRequest request);
     }
 }

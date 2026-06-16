@@ -1,8 +1,10 @@
 using dotenv.net;
 using Microsoft.EntityFrameworkCore;
 using NATS.Client.Core;
+using NATS.Client.JetStream;
 using NATS.Client.Serializers.Json;
 using ParserService.Application.Handlers.Operators;
+using ParserService.Application.Infrastructure;
 using ParserService.Application.Mapping;
 using ParserService.Application.Messaging;
 using ParserService.Application.Services;
@@ -44,6 +46,13 @@ builder.Services.AddSingleton(sp =>
     return new NatsConnection(natsOpts);
 });
 
+builder.Services.AddSingleton(sp => {
+    var nats = sp.GetRequiredService<NatsConnection>();
+    return new NatsJSContext(nats);
+});
+
+builder.Services.AddHostedService<OperatorInitializationService>();
+
 builder.Services.AddScoped<ITourOperatorParser, DertourParser>();
 builder.Services.AddScoped<ParserFactory>();
 
@@ -61,6 +70,11 @@ builder.Services.AddSingleton<IPlaywrightProvider>(sp =>
 });
 builder.Services.AddScoped<IPageProcessor, PageProcessor>();
 builder.Services.AddScoped<ReferenceProcessor>();
+builder.Services.AddScoped<ErrorLoggingService>();
+
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
 
 WebApplication app = builder.Build();
 

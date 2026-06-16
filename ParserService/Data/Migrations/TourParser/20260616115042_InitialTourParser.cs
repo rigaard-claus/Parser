@@ -4,10 +4,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace ParserService.Data.Migrations
+namespace ParserService.Data.Migrations.TourParser
 {
     /// <inheritdoc />
-    public partial class InitialTourParserDb : Migration
+    public partial class InitialTourParser : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

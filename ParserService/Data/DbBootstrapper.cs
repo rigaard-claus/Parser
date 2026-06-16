@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using ParserService.Data.Contexts;
+using System.Reflection;
 
 namespace ParserService.Data
 {
@@ -13,16 +14,26 @@ namespace ParserService.Data
             services.AddDbContext<DbTourParser>(options =>
                 options.UseNpgsql(connectionString));
 
+            services.AddDbContextFactory<DbErrorLog>(options =>
+                options.UseNpgsql(connectionString));
+
             return services;
         }
 
         public static void ApplyMigrations(this IApplicationBuilder app)
         {
             using var scope = app.ApplicationServices.CreateScope();
+            var provider = scope.ServiceProvider;
 
-            using var context = scope.ServiceProvider.GetRequiredService<DbTourParser>();
+            var contextTypes = Assembly.GetExecutingAssembly().GetTypes()
+                .Where(t => t.IsSubclassOf(typeof(DbContext)) && !t.IsAbstract);
 
-            context.Database.Migrate();
+            foreach (var type in contextTypes)
+            {
+                var context = (DbContext)provider.GetRequiredService(type);
+
+                context.Database.Migrate();
+            }
         }
     }
 }

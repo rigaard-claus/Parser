@@ -9,29 +9,43 @@ namespace ParserService.Application.Services
     public class OperatorConfigurationService
     {
         private readonly DbTourParser _context;
-        private readonly string _configPath = "operators_config.json";
+        private readonly string _configPath = Path.Combine(AppContext.BaseDirectory, "ParserCore", "Config", "operators_config.json");
+        private List<OperatorConfig>? _cachedConfigs;
 
         public OperatorConfigurationService(DbTourParser context) => _context = context;
 
-        public async Task SyncOperatorsWithConfigAsync()
+        public async Task<List<OperatorConfig>> GetConfigsAsync()
         {
-            if (!File.Exists(_configPath)) return;
+            if (_cachedConfigs != null) return _cachedConfigs;
+
+            if (!File.Exists(_configPath)) return new List<OperatorConfig>();
 
             var json = await File.ReadAllTextAsync(_configPath);
-            var configOperators = JsonSerializer.Deserialize<List<OperatorConfig>>(json);
+            _cachedConfigs = JsonSerializer.Deserialize<List<OperatorConfig>>(json) ?? new List<OperatorConfig>();
 
-            if (configOperators == null) return;
+            return _cachedConfigs;
+        }
 
-            foreach (var configOp in configOperators)
-            {
-                var exists = await _context.Operators.AnyAsync(o => o.Name == configOp.Name);
-                if (!exists)
+        public async Task SyncOperatorsWithConfigAsync()
+        {
+            var configs = await GetConfigsAsync();
+            if (!configs.Any()) return;
+
+            var existingNames = await _context.Operators.Select(o => o.Name).ToListAsync();
+
+            var newOperators = configs
+                .Where(c => !existingNames.Contains(c.OperatorName))
+                .Select(c => new OperatorEntity
                 {
-                    _context.Operators.Add(new OperatorEntity { Name = configOp.Name, Priority = configOp.Priority });
-                }
-            }
+                    Name = c.OperatorName,
+                    Priority = c.Priority
+                });
 
-            await _context.SaveChangesAsync();
+            if (newOperators.Any())
+            {
+                await _context.Operators.AddRangeAsync(newOperators);
+                await _context.SaveChangesAsync();
+            }
         }
     }
 }

@@ -16,6 +16,7 @@ using ParserService.ParserCore.Http;
 using ParserService.ParserCore.Interfaces;
 using ParserService.ParserCore.Processing;
 using ParserService.ParserCore.References;
+using ParserService.ParserCore.References.Providers;
 using Scalar.AspNetCore;
 using System.Text.Json;
 
@@ -42,8 +43,9 @@ builder.Services.AddSingleton(sp =>
         Name = $"[{stage}][{hostName}][PID:{processId}] ParserService",
         Url = natsUrl,
         SerializerRegistry = new NatsJsonContextOptionsSerializerRegistry(new JsonSerializerOptions()),
-        ConnectTimeout = TimeSpan.FromSeconds(30),
-        LoggerFactory = LoggerFactory.Create(logging => logging.AddConsole())
+        ConnectTimeout = TimeSpan.FromSeconds(60),
+        LoggerFactory = LoggerFactory.Create(logging => logging.AddConsole()),
+        RequestTimeout = TimeSpan.FromSeconds(60)
     };
     return new NatsConnection(natsOpts);
 });
@@ -55,6 +57,7 @@ builder.Services.AddSingleton(sp => {
 
 builder.Services.AddHostedService<OperatorInitializationService>();
 
+builder.Services.AddScoped<IReferenceProvider, DertourReferenceProvider>();
 builder.Services.AddScoped<ITourOperatorParser, DertourParser>();
 builder.Services.AddScoped<ParserFactory>();
 
@@ -63,6 +66,7 @@ builder.Services.AddScoped<GetOperatorsHandler>();
 builder.Services.AddScoped<ParserRunnerHandler>();
 builder.Services.AddScoped<UpdateReferencesHandler>();
 builder.Services.AddHostedService<NatsSubscriptionWorker>();
+builder.Services.AddHostedService<ErrorLoggingWorker>();
 builder.Services.AddSingleton<INatsBus, NatsBus>();
 builder.Services.AddSingleton<ISubscriptionRegistrar, SubscriptionRegistrar>();
 

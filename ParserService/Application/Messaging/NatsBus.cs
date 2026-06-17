@@ -1,4 +1,5 @@
 ﻿using NATS.Client.Core;
+using NATS.Client.JetStream;
 using ParserService.Application.Models.Messages;
 using ParserService.Application.Services;
 
@@ -14,7 +15,7 @@ namespace ParserService.Application.Messaging
             var subject = Extensions.GetSubject<THandler>();
             try
             {
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(300));
                 var reply = await connection.RequestAsync<TRequest, TResponse>(subject, request, cancellationToken: cts.Token);
                 return reply.Data!;
             }
@@ -79,7 +80,10 @@ namespace ParserService.Application.Messaging
 
         public async Task PublishErrorAsync(LogErrorRequest request)
         {
-            await connection.PublishAsync("error_logs", request);
+            //await connection.PublishAsync("error_logs", request);
+            var js = new NatsJSContext(connection);
+            // Публикация именно в JetStream
+            await js.PublishAsync("error_logs", request);
         }
 
         private async Task LogErrorInternal(string message, string stack)

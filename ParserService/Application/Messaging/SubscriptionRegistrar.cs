@@ -1,7 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using ParserService.Application.Handlers;
+﻿using ParserService.Application.Handlers;
 using ParserService.Application.Handlers.Operators;
-using ParserService.Application.Messaging;
 using ParserService.Application.Models.Answers;
 using ParserService.Application.Models.Requests;
 using ParserService.ParserCore.References;
@@ -39,11 +37,19 @@ namespace ParserService.Application.Messaging
 
             await ((NatsBus)bus).SubscribeRawAsync<TReq, TRes>(subject, async (req) =>
             {
-                using var scope = sp.CreateScope();
-                var handler = scope.ServiceProvider.GetRequiredService<THandler>();
+                try
+                {
+                    using var scope = sp.CreateScope();
+                    var handler = scope.ServiceProvider.GetRequiredService<THandler>(); // <--- ВОТ ТУТ ПАДАЕТ
 
-                dynamic dynamicHandler = handler;
-                return await (Task<TRes>)dynamicHandler.HandleAsync(req);
+                    dynamic dynamicHandler = handler;
+                    return await (Task<TRes>)dynamicHandler.HandleAsync(req);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[CRITICAL] Ошибка при создании или выполнении хендлера {typeof(THandler).Name}: {ex}");
+                    throw;
+                }
             }, isBackground);
         }
     }

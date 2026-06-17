@@ -31,5 +31,9 @@
     <Folder Include="Controllers\" />
     <Folder Include="Infrastructure\Services\" />
   </ItemGroup>
+  
+<Target Name="PublishRunWebpack" AfterTargets="ComputeFilesToPublish">
+  <Exec Command="pwsh bin/$(Configuration)/$(TargetFramework)/playwright.ps1 install" />
+</Target>
 
 </Project>

@@ -2,6 +2,7 @@
 {
     public class OperatorOptions
     {
+        public int OperatorId { get; set; } = 0;
         public string OperatorName { get; set; }
         public int Priority { get; set; }
         public string BaseUrl { get; set; }

@@ -1,39 +1,47 @@
-﻿using ParserService.ParserCore.Http;
+﻿using ParserService.Application.Messaging;
+using ParserService.Application.Models.Messages;
+using ParserService.ParserCore.Http;
 
 namespace ParserService.ParserCore.References
 {
-    public class ReferenceProcessor(IEnumerable<IReferenceProvider> providers, IPlaywrightProvider playwrightProvider, ILogger<ReferenceProcessor> logger)
+    public class ReferenceProcessor(IEnumerable<IReferenceProvider> providers, IServiceProvider serviceProvider, ILogger<ReferenceProcessor> logger)
     {
         public async Task RunAllAsync()
         {
             logger.LogInformation("Начало обновления всех справочников...");
 
-            var page = await playwrightProvider.GetNewPageAsync();
-
-            try
+            // Создаем список задач
+            var tasks = providers.Select(provider => Task.Run(async () =>
             {
-                foreach (var provider in providers)
+                using var scope = serviceProvider.CreateScope();
+                var natsBus = scope.ServiceProvider.GetRequiredService<INatsBus>();
+                var playwrightProvider = scope.ServiceProvider.GetRequiredService<IPlaywrightProvider>();
+
+                var page = await playwrightProvider.GetNewPageAsync();
+                try
                 {
-                    try
-                    {
-                        logger.LogInformation("Обновление справочников для: {Operator}", provider.OperatorName);
-
-                        await provider.UpdateReferencesAsync(page);
-
-                        logger.LogInformation("Справочники для {Operator} успешно обновлены.", provider.OperatorName);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "Критическая ошибка в провайдере {Operator}: {Message}",
-                            provider.OperatorName, ex.Message);
-                    }
+                    logger.LogInformation("Запуск обновления: {Operator}", provider.OperatorName);
+                    await provider.UpdateReferencesAsync(page);
+                    logger.LogInformation("Успешно для {Operator}", provider.OperatorName);
                 }
-            }
-            finally
-            {
-                await page.CloseAsync();
-                logger.LogInformation("Процесс обновления справочников завершен.");
-            }
+                catch (Exception ex)
+                {
+                    await natsBus.PublishErrorAsync(new LogErrorRequest(
+                        $"Ошибка в {provider.OperatorName}: {ex.Message}",
+                        ex.StackTrace ?? "No stack trace",
+                        DateTime.UtcNow
+                    ));
+                }
+                finally
+                {
+                    await page.CloseAsync();
+                }
+            }));
+
+            // Ждем выполнения всех задач
+            await Task.WhenAll(tasks);
+
+            logger.LogInformation("Все процессы обновления завершены.");
         }
     }
 }

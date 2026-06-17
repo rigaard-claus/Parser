@@ -22,7 +22,7 @@ namespace ParserService.Application.Handlers
 
             // 3. Запускаем (здесь можно передать IPage, созданный через PageProcessor)
             // Для примера вызываем метод обновления справочников
-            // await provider.UpdateReferencesAsync(page);
+            //await provider.UpdateReferencesAsync(page)
 
             return new RunParserAnswer { Success = true, Error = $"Запущен парсинг: {opEntity.Name}" };
         }

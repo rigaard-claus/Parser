@@ -4,6 +4,7 @@ using ParserService.Application.Handlers.Operators;
 using ParserService.Application.Messaging;
 using ParserService.Application.Models.Answers;
 using ParserService.Application.Models.Requests;
+using ParserService.ParserCore.References;
 
 namespace ParserService.Application.Mapping
 {
@@ -39,6 +40,20 @@ namespace ParserService.Application.Mapping
             .WithDescription("Инициирует процесс парсинга справочников или данных для конкретного оператора по его ID.")
             .Produces<RunParserAnswer>(StatusCodes.Status200OK)
             .Produces<RunParserAnswer>(StatusCodes.Status400BadRequest);
+
+            group.MapPost("references/refresh", async (INatsBus natsBus) =>
+            {
+                var result = await natsBus.RequestAsync<UpdateReferencesHandler, UpdateReferencesRequest, UpdateReferencesAnswer>(
+                    new UpdateReferencesRequest()
+                );
+
+                return result.Success ? Results.Ok(result) : Results.BadRequest(result);
+            })
+            .WithName("RefreshReferences")
+            .WithSummary("Принудительное обновление всех справочников")
+            .WithDescription("Запускает полный цикл обновления справочников (страны-туры-регионы) для всех провайдеров.")
+            .Produces<UpdateReferencesAnswer>(StatusCodes.Status200OK)
+            .Produces<UpdateReferencesAnswer>(StatusCodes.Status400BadRequest);
         }
     }
 }

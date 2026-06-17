@@ -1,9 +1,11 @@
-﻿using ParserService.Application.Models.Answers;
+﻿using ParserService.Application.Messaging;
+using ParserService.Application.Models.Answers;
+using ParserService.Application.Models.Messages;
 using ParserService.Application.Models.Requests;
 
 namespace ParserService.ParserCore.References
 {
-    public class UpdateReferencesHandler(ReferenceProcessor processor, ILogger<UpdateReferencesHandler> logger)
+    public class UpdateReferencesHandler(ReferenceProcessor processor, ILogger<UpdateReferencesHandler> logger, INatsBus natsBus)
     {
         public async Task<UpdateReferencesAnswer> HandleAsync(UpdateReferencesRequest request)
         {
@@ -17,7 +19,12 @@ namespace ParserService.ParserCore.References
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Ошибка в UpdateReferencesHandler");
+                await natsBus.PublishErrorAsync(new LogErrorRequest(
+                    "Ошибка в UpdateReferencesHandler",
+                    ex.StackTrace ?? "No stack trace",
+                    DateTime.UtcNow
+                ));
+
                 return new UpdateReferencesAnswer(Success: false, ErrorMessage: ex.Message);
             }
         }

@@ -1,6 +1,7 @@
 ﻿using ParserService.Application.Messaging;
 using ParserService.Application.Models.Messages;
 using ParserService.ParserCore.Http;
+using ParserService.ParserCore.Repositories;
 
 namespace ParserService.ParserCore.References
 {
@@ -17,11 +18,11 @@ namespace ParserService.ParserCore.References
                 var natsBus = scope.ServiceProvider.GetRequiredService<INatsBus>();
                 var playwrightProvider = scope.ServiceProvider.GetRequiredService<IPlaywrightProvider>();
 
-                var page = await playwrightProvider.GetNewPageAsync();
                 try
                 {
                     logger.LogInformation("Запуск обновления: {Operator}", provider.OperatorName);
-                    await provider.UpdateReferencesAsync(page);
+                    var countryData = await provider.UpdateReferencesAsync();
+                    await countryData.SaveAsync(serviceProvider, provider.OperatorName);
                     logger.LogInformation("Успешно для {Operator}", provider.OperatorName);
                 }
                 catch (Exception ex)
@@ -34,7 +35,7 @@ namespace ParserService.ParserCore.References
                 }
                 finally
                 {
-                    await page.CloseAsync();
+
                 }
             }));
 

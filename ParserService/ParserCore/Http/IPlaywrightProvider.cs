@@ -4,7 +4,7 @@ namespace ParserService.ParserCore.Http
 {
     public interface IPlaywrightProvider : IAsyncDisposable
     {
-        Task<IPage> GetNewPageAsync();
+        Task<IPage> GetNewPageAsync(Dictionary<string, string> headers);
         new ValueTask DisposeAsync();
     }
 }

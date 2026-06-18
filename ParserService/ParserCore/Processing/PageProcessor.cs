@@ -14,7 +14,7 @@ namespace ParserService.ParserCore.Processing
 
         public async Task<string> GetPageContentAsync(string url)
         {
-            var page = await _playwrightProvider.GetNewPageAsync();
+            var page = await _playwrightProvider.GetNewPageAsync(null);
 
             await page.GotoAsync(url, new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle });
 

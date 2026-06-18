@@ -1,4 +1,4 @@
-﻿using Microsoft.Playwright;
+﻿using ParserService.Data.Entities;
 using ParserService.ParserCore.Models;
 
 namespace ParserService.ParserCore.References
@@ -7,6 +7,6 @@ namespace ParserService.ParserCore.References
     {
         string OperatorName { get; }
         OperatorOptions GetOptions();
-        Task UpdateReferencesAsync(IPage page);
+        Task<List<CountryEntity>> UpdateReferencesAsync();
     }
 }

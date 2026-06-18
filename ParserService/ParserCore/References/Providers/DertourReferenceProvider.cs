@@ -1,8 +1,13 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿
 using Microsoft.Playwright;
-using ParserService.Data.Contexts;
+using Newtonsoft.Json.Linq;
+using ParserService.Application.Messaging;
+using ParserService.Application.Models.Messages;
 using ParserService.Data.Entities;
+using ParserService.ParserCore.Http;
 using ParserService.ParserCore.Models;
+using System.Text.RegularExpressions;
+using System.Xml;
 
 namespace ParserService.ParserCore.References.Providers
 {
@@ -16,93 +21,163 @@ namespace ParserService.ParserCore.References.Providers
             {
                 OperatorName = "DERTOUR Germany",
                 Priority = 10,
-                BaseUrl =  "https://www.dertour.de",
+                BaseUrl = "https://www.dertour.de",
                 DepartureReferenceUrl = "https://www.dertour.de",
                 CountryReferenceUrl = "",
                 RegionReferenceUrl = "",
-                HotelReferenceUrl = ""
+                HotelReferenceUrl = "",
+                Headers = new Dictionary<string, string>
+                {
+                    { "Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
+                    { "Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7" },
+                    { "Accept-Encoding", "gzip, deflate, br, zstd" },
+                    { "Connection", "keep-alive" },
+                    { "Upgrade-Insecure-Requests", "1" },
+                    { "Sec-Fetch-Dest", "document" },
+                    { "Sec-Fetch-Mode", "navigate" },
+                    { "Sec-Fetch-Site", "none" },
+                    { "Sec-Fetch-User", "?1" }
+                }
             };
         }
 
-        public async Task UpdateReferencesAsync(IPage page)
+        public async Task<List<CountryEntity>> UpdateReferencesAsync()
         {
             using var scope = scopeFactory.CreateScope();
-            var tourParser = scope.ServiceProvider.GetRequiredService<DbTourParser>();
-
-            var operatorEntity = await tourParser.Operators
-                .FirstOrDefaultAsync(o => o.Name == OperatorName);
-
-            if (operatorEntity == null)
-                throw new Exception($"Оператор {OperatorName} не найден в БД!");
-
-            int operatorId = operatorEntity.Id;
+            var playwrightProvider = scope.ServiceProvider.GetRequiredService<IPlaywrightProvider>();
+            var natsBus = scope.ServiceProvider.GetRequiredService<INatsBus>();
 
             var options = GetOptions();
-            options.OperatorId = operatorId;
+            var page = await playwrightProvider.GetNewPageAsync(options.Headers);
+            var countries = new List<CountryEntity>();
+            Dictionary<string, List<ReferenceData>> allReferences = new Dictionary<string, List<ReferenceData>>();
+            List<ReferenceData> referenceCountries = new List<ReferenceData>();
 
-            await page.GotoAsync(options.DepartureReferenceUrl);
-
-            var content = await page.ContentAsync();
-
-            // 1. Пытаемся найти страну в HTML (или берем дефолт)
-            var countryName = await page.Locator("h1.country-title").InnerTextAsync();
-            if (string.IsNullOrWhiteSpace(countryName)) countryName = "Germany";
-
-            // 2. Поиск или создание Страны (Entity)
-            var country = await tourParser.Countries
-                .FirstOrDefaultAsync(c => c.Name == countryName.Trim() && c.OperatorId == options.OperatorId);
-
-            if (country == null)
+            try
             {
-                country = new CountryEntity { Name = countryName.Trim(), OperatorId = options.OperatorId, FrontendId = "n/a" };
-                await tourParser.Countries.AddAsync(country);
-                await tourParser.SaveChangesAsync(); // Получаем Id
-            }
+                await page.GotoAsync(GetOptions().DepartureReferenceUrl, new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle });
 
-            // 3. Поиск или создание Тура "Default Departure" (Entity)
-            var tour = await tourParser.Tours
-                .FirstOrDefaultAsync(t => t.Name == "Default Departure" && t.CountryId == country.Id);
+                var content = await page.ContentAsync();
 
-            if (tour == null)
-            {
-                tour = new TourEntity { Name = "Default Departure", CountryId = country.Id, FrontendId = "default" };
-                await tourParser.Tours.AddAsync(tour);
-                await tourParser.SaveChangesAsync(); // Получаем Id
-            }
+                var match = Regex.Match(content, @"<script id=""__NEXT_DATA__""[^>]*>(.*?)</script>", RegexOptions.Singleline);
 
-            // 4. Парсинг регионов
-            await page.WaitForSelectorAsync(".departure-region-item");
-            var regionLocators = page.Locator(".departure-region-item");
-            var count = await regionLocators.CountAsync();
-
-            for (int i = 0; i < count; i++)
-            {
-                var item = regionLocators.Nth(i);
-                var fId = await item.GetAttributeAsync("data-id") ?? "";
-                var name = (await item.InnerTextAsync()).Trim();
-
-                // Ищем существующий регион
-                var region = await tourParser.Regions
-                    .FirstOrDefaultAsync(r => r.TourId == tour.Id && r.FrontendId == fId);
-
-                if (region != null)
+                if (!match.Success)
                 {
-                    region.Name = name; // Обновляем
+                    throw new Exception("Тег с __NEXT_DATA__ не найден!");
                 }
-                else
+
+                string json = match.Groups[1].Value;
+
+                JObject jObj = JObject.Parse(json);
+                var cache = jObj.SelectToken("props.pageProps.__cache") as JObject;
+                if (cache != null)
                 {
-                    // Добавляем новый
-                    await tourParser.Regions.AddAsync(new RegionEntity
+                    var targetKey = cache.Properties()
+                         .FirstOrDefault(p => p.Name.Contains("destinations/get-default-search-suggestions"));
+
+                    if (targetKey != null)
                     {
-                        TourId = tour.Id,
-                        FrontendId = fId,
-                        Name = name
-                    });
+                        var result = targetKey.Value["result"];
+                        if (result != null)
+                        {
+                            var data = result["data"];
+
+                            JObject dataObj = result["data"]?.Value<JObject>();
+                            var properties = dataObj.Properties()
+                                .ToList();
+
+                            foreach (var allChildren in properties)
+                                foreach (var child in allChildren.Value)
+                                {
+                                    List<ReferenceData> referenceDataList = new List<ReferenceData>();
+                                    var parensts = child["parents"] as JArray;
+                                    if (parensts != null && parensts.Count > 0)
+                                    {
+                                        foreach (var parent in parensts)
+                                        {
+                                            referenceDataList.Add(new ReferenceData
+                                            {
+                                                Name = parent["value"]?.ToString(),
+                                                FrontendId = parent["id"]?.ToString(),
+                                                IsCountry = parent["type"].ToString() == "COUNTRY"
+                                            });
+                                        }
+                                    }
+                                    else
+                                    {
+                                        referenceDataList.Add(new ReferenceData
+                                        {
+                                            Name = child["value"]?.ToString(),
+                                            FrontendId = child["id"]?.ToString(),
+                                            IsCountry = child["type"].ToString() == "COUNTRY"
+                                        });
+                                    }
+                                    var mainCountry = referenceDataList.FirstOrDefault(r => r.IsCountry);
+                                    if (mainCountry != null && !allReferences.ContainsKey(mainCountry.FrontendId))
+                                    {
+                                        allReferences.Add(mainCountry.FrontendId, new List<ReferenceData>());
+                                        referenceCountries.Add(mainCountry);
+                                    }
+                                    foreach (var reference in referenceDataList.Where(r => !r.IsCountry))
+                                        if (!allReferences[mainCountry.FrontendId].Contains(reference))
+                                            allReferences[mainCountry.FrontendId].Add(reference);
+                                }
+                        }
+                    }
+
+                    foreach (var countryItem in allReferences)
+                    {
+                        var currentCountry = referenceCountries.FirstOrDefault(x => x.FrontendId == countryItem.Key);
+                        var country = new CountryEntity
+                        {
+                            Name = currentCountry.Name,
+                            FrontendId = currentCountry.FrontendId
+                        };
+
+                        var tour = new TourEntity
+                        {
+                            Name = "Default Departure",
+                            FrontendId = "n/a",
+                            Country = country
+                        };
+
+                        foreach (var regItem in countryItem.Value)
+                        {
+                            var region = new RegionEntity
+                            {
+                                Name = regItem.Name,
+                                FrontendId = regItem.FrontendId,
+                                Tour = tour
+                            };
+
+                            tour.Regions.Add(region);
+                        }
+
+                        country.Tours.Add(tour);
+                        countries.Add(country);
+                    }
                 }
             }
+            catch(Exception ex)
+            {
+                await natsBus.PublishErrorAsync(new LogErrorRequest(
+                   ex.Message,
+                   ex.StackTrace ?? "No stack trace",
+                   DateTime.UtcNow));
+            }
+            finally
+            {
+                await page.CloseAsync();
+            }
 
-            // 5. Финальное сохранение всех регионов разом
-            await tourParser.SaveChangesAsync();
+            return countries;
+        }
+
+        private class ReferenceData
+        {
+            public string Name { get; set; }
+            public string FrontendId { get; set; }
+            public bool IsCountry { get; set; }
         }
     }
 }

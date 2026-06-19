@@ -1,13 +1,15 @@
-﻿using ParserService.Data.Contexts;
+﻿using Microsoft.EntityFrameworkCore;
+using ParserService.Data.Contexts;
 using ParserService.Data.Entities;
 
 namespace ParserService.Application.Services
 {
-    public class ErrorLoggingService(DbErrorLog errorLog, ILogger<ErrorLoggingService> logger)
+    public class ErrorLoggingService(IDbContextFactory<DbErrorLog> contextFactory, ILogger<ErrorLoggingService> logger)
     {
         public async Task LogErrorAsync(string message, string trace)
         {
             logger.LogError("Error occurred: {Message}. Trace: {Trace}", message, trace);
+            using var errorLog = await contextFactory.CreateDbContextAsync();
 
             var log = new ErrorLogEntity
             {

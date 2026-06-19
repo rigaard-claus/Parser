@@ -6,7 +6,6 @@ namespace ParserService.ParserCore.References
     public interface IReferenceProvider
     {
         string OperatorName { get; }
-        OperatorOptions GetOptions();
         Task<List<CountryEntity>> UpdateReferencesAsync();
     }
 }

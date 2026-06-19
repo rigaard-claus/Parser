@@ -4,6 +4,6 @@ namespace ParserService.ParserCore.Repositories
 {
     public interface ITourDataRepository
     {
-        Task SaveTourDataAsync(ParsedTour parsedTour, int directionId);
+        Task SaveTourDataAsync(ParsedTour parsedTour);
     }
 }

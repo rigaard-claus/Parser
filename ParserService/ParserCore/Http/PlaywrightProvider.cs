@@ -12,7 +12,12 @@ namespace ParserService.ParserCore.Http
             _playwright = await Playwright.CreateAsync();
             _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
             {
-                Headless = true
+                Headless = false, // Включаем режим с окном для отладки
+                Args = new[]
+                {
+                    "--disable-blink-features=AutomationControlled", // Скрывает признаки автоматизации
+                    "--start-maximized"
+                }
             });
         }
 
@@ -27,6 +32,9 @@ namespace ParserService.ParserCore.Http
                 TimezoneId = "Europe/Berlin",
                 ExtraHTTPHeaders = headers ?? new Dictionary<string, string>()
             });
+
+            await context.AddInitScriptAsync("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
+
             return await context.NewPageAsync();
         }
 

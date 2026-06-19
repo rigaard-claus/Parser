@@ -11,6 +11,9 @@
         public string CountryReferenceUrl { get; set; }
         public string RegionReferenceUrl { get; set; }
         public string HotelReferenceUrl { get; set; }
+        public string Referer { get; set; }
+        public string DataUrl { get; set; }
         public Dictionary<string, string> Headers { get; set; } = new();
+        public Dictionary<string, string> RawHeaders { get; set; } = new();
     }
 }

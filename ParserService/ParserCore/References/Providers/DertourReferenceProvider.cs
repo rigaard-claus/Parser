@@ -5,41 +5,18 @@ using ParserService.Application.Messaging;
 using ParserService.Application.Models.Messages;
 using ParserService.Data.Entities;
 using ParserService.ParserCore.Http;
+using ParserService.ParserCore.Interfaces;
 using ParserService.ParserCore.Models;
+using System.Net;
 using System.Text.RegularExpressions;
-using System.Xml;
 
 namespace ParserService.ParserCore.References.Providers
 {
-    public class DertourReferenceProvider(IServiceScopeFactory scopeFactory) : IReferenceProvider
+    public class DertourReferenceProvider(IServiceScopeFactory scopeFactory, IOperatorOptionsFactory optionsFactory) : IReferenceProvider
     {
         public string OperatorName => "DERTOUR_DE";
 
-        public OperatorOptions GetOptions()
-        {
-            return new OperatorOptions
-            {
-                OperatorName = "DERTOUR Germany",
-                Priority = 10,
-                BaseUrl = "https://www.dertour.de",
-                DepartureReferenceUrl = "https://www.dertour.de",
-                CountryReferenceUrl = "",
-                RegionReferenceUrl = "",
-                HotelReferenceUrl = "",
-                Headers = new Dictionary<string, string>
-                {
-                    { "Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
-                    { "Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7" },
-                    { "Accept-Encoding", "gzip, deflate, br, zstd" },
-                    { "Connection", "keep-alive" },
-                    { "Upgrade-Insecure-Requests", "1" },
-                    { "Sec-Fetch-Dest", "document" },
-                    { "Sec-Fetch-Mode", "navigate" },
-                    { "Sec-Fetch-Site", "none" },
-                    { "Sec-Fetch-User", "?1" }
-                }
-            };
-        }
+        private readonly OperatorOptions _options = optionsFactory.GetProvider("DERTOUR_DE").GetOptions();
 
         public async Task<List<CountryEntity>> UpdateReferencesAsync()
         {
@@ -47,15 +24,14 @@ namespace ParserService.ParserCore.References.Providers
             var playwrightProvider = scope.ServiceProvider.GetRequiredService<IPlaywrightProvider>();
             var natsBus = scope.ServiceProvider.GetRequiredService<INatsBus>();
 
-            var options = GetOptions();
-            var page = await playwrightProvider.GetNewPageAsync(options.Headers);
+            var page = await playwrightProvider.GetNewPageAsync(_options.Headers);
             var countries = new List<CountryEntity>();
             Dictionary<string, List<ReferenceData>> allReferences = new Dictionary<string, List<ReferenceData>>();
             List<ReferenceData> referenceCountries = new List<ReferenceData>();
 
             try
             {
-                await page.GotoAsync(GetOptions().DepartureReferenceUrl, new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle });
+                await page.GotoAsync(_options.DepartureReferenceUrl, new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle });
 
                 var content = await page.ContentAsync();
 

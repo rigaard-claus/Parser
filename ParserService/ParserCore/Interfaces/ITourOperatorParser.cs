@@ -1,11 +1,11 @@
-﻿using ParserService.ParserCore.Models;
+﻿using ParserService.Application.Models.Requests;
+using ParserService.Data.Entities;
 
 namespace ParserService.ParserCore.Interfaces
 {
     public interface ITourOperatorParser
     {
         string OperatorName { get; }
-        Task<List<Country>> GetReferencesAsync();
-        Task<List<Region>> GetDataAsync(string countryId);
+        Task GetDataAsync(RunParserRequest request);
     }
 }

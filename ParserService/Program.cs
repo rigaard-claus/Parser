@@ -1,5 +1,6 @@
 using dotenv.net;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Playwright;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.Serializers.Json;
@@ -10,13 +11,16 @@ using ParserService.Application.Mapping;
 using ParserService.Application.Messaging;
 using ParserService.Application.Services;
 using ParserService.Data;
+using ParserService.Data.Contexts;
 using ParserService.ParserCore;
+using ParserService.ParserCore.Engine.Parsers;
 using ParserService.ParserCore.Engine.Parsers.Dertour;
 using ParserService.ParserCore.Http;
 using ParserService.ParserCore.Interfaces;
 using ParserService.ParserCore.Processing;
 using ParserService.ParserCore.References;
 using ParserService.ParserCore.References.Providers;
+using ParserService.ParserCore.Repositories;
 using Scalar.AspNetCore;
 using System.Text.Json;
 
@@ -24,12 +28,10 @@ var hostName = Environment.MachineName;
 var processId = Environment.ProcessId;
 var stage = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
 
+//AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 DotEnv.Load(new DotEnvOptions().WithProbeForEnv());
 
 var builder = WebApplication.CreateBuilder(args);
-
-builder.Services.AddDatabaseContext(builder.Configuration);
-
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -55,12 +57,18 @@ builder.Services.AddSingleton(sp => {
     return new NatsJSContext(nats);
 });
 
-builder.Services.AddHostedService<OperatorInitializationService>();
+builder.Services.AddHttpClient("OperatorHttpClient", client =>
+{
 
+});
+
+builder.Services.AddHostedService<OperatorInitializationService>();
+builder.Services.AddSingleton<IOperatorOptionsProvider, DertourOptionsProvider>();
+builder.Services.AddSingleton<IOperatorOptionsFactory, OperatorOptionsFactory>();
 builder.Services.AddScoped<IReferenceProvider, DertourReferenceProvider>();
 builder.Services.AddScoped<ITourOperatorParser, DertourParser>();
 builder.Services.AddScoped<ParserFactory>();
-
+builder.Services.AddScoped<ITourDataRepository, TourDataRepository>();
 builder.Services.AddScoped<OperatorConfigurationService>();
 builder.Services.AddScoped<GetOperatorsHandler>();
 builder.Services.AddScoped<ParserRunnerHandler>();
@@ -69,6 +77,17 @@ builder.Services.AddHostedService<NatsSubscriptionWorker>();
 builder.Services.AddHostedService<ErrorLoggingWorker>();
 builder.Services.AddSingleton<INatsBus, NatsBus>();
 builder.Services.AddSingleton<ISubscriptionRegistrar, SubscriptionRegistrar>();
+
+var connectionString = builder.Configuration.GetConnectionString("PostgresConnection");
+builder.Services.AddPooledDbContextFactory<DbTourParser>(options =>
+ options.UseNpgsql(connectionString));
+builder.Services.AddPooledDbContextFactory<DbErrorLog>( options => 
+options.UseNpgsql(connectionString));
+
+builder.Services.AddSingleton<IPlaywright>(sp =>
+{
+    return Playwright.CreateAsync().GetAwaiter().GetResult();
+});
 
 builder.Services.AddSingleton<IPlaywrightProvider>(sp =>
 {

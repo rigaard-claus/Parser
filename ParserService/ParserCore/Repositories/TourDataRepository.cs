@@ -4,6 +4,7 @@ using ParserService.Data.Contexts;
 using ParserService.Data.Entities;
 using ParserService.ParserCore.Models;
 using System.Collections.Concurrent;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ParserService.ParserCore.Repositories;
 
@@ -17,20 +18,20 @@ public class TourDataRepository(IMapper mapper, IDbContextFactory<DbTourParser> 
     private static readonly ConcurrentDictionary<string, int> _currenciesCache = new();
     private static readonly ConcurrentDictionary<string, int> _priceTypesCache = new();
 
-    public async Task SaveTourDataAsync(ParsedTour parsedTour, int directionId)
+    public async Task SaveTourDataAsync(ParsedTour parsedTour)
     {
         using var context = await contextFactory.CreateDbContextAsync();
 
-        int operatorId = await GetOperatorIdFromDirectionAsync(context, directionId);
+        int operatorId = (int)parsedTour.OperatorId;
 
-        int depCountryId = await GetOrAddCountryAsync(context, parsedTour.DepartureCountry, operatorId);
-        int depRegionId = await GetOrAddRegionAsync(context, parsedTour.DepartureRegion, depCountryId);
+        int depCountryId = await GetOrAddCountryAsync(context, parsedTour.DepartureCountry, operatorId, parsedTour.DepartureCountryFrontendId);
+        int depRegionId = await GetOrAddRegionAsync(context, parsedTour.DepartureRegion, depCountryId, parsedTour.DepartureRegionFrontendId);
 
-        int arrCountryId = await GetOrAddCountryAsync(context, parsedTour.ArrivalCountry, operatorId);
-        int arrTourId = await GetOrAddTourAsync(context, parsedTour.ArrivalTour, arrCountryId);
-        int arrRegionId = await GetOrAddRegionAsync(context, parsedTour.ArrivalRegion, arrTourId);
+        int arrCountryId = await GetOrAddCountryAsync(context, parsedTour.ArrivalCountry, operatorId, parsedTour.ArrivalCountryFrontendId);
+        int arrTourId = await GetOrAddTourAsync(context, parsedTour.ArrivalTour, arrCountryId, parsedTour.ArrivalTourFrontendId);
+        int arrRegionId = await GetOrAddRegionAsync(context, parsedTour.ArrivalRegion, arrTourId, parsedTour.ArrivalRegionFrontendId);
 
-        int hotelId = await GetOrAddHotelAsync(context, parsedTour.HotelName, arrRegionId);
+        int hotelId = await GetOrAddHotelAsync(context, parsedTour.HotelName, arrRegionId, parsedTour.HotelFrontendId);
         int placementId = await GetOrAddPlacementAsync(context, parsedTour.PlacementName, operatorId);
         int currencyId = await GetOrAddCurrencyAsync(context, parsedTour.CurrencyCode, operatorId);
 
@@ -55,11 +56,13 @@ public class TourDataRepository(IMapper mapper, IDbContextFactory<DbTourParser> 
                 PriceTypeId = priceTypeId,
                 PlacementId = placementId,
                 CurrencyId = currencyId,
-                PriceValue = parsedTour.Price,
                 Date = parsedTour.Date,
+                PriceValue = parsedTour.Price,
                 Nights = parsedTour.Nights,
                 UpdatedAt = DateTime.UtcNow
             };
+            newPrice.Date = DateTime.SpecifyKind(newPrice.Date, DateTimeKind.Utc);
+
             await context.Prices.AddAsync(mapper.Map<PriceEntity>(newPrice));
         }
 
@@ -82,66 +85,108 @@ public class TourDataRepository(IMapper mapper, IDbContextFactory<DbTourParser> 
 
     // --- Хелперы (теперь работают с OperatorId) ---
 
-    private async Task<int> GetOrAddCountryAsync(DbTourParser ctx, string name, int opId)
+    private async Task<int> GetOrAddCountryAsync(DbTourParser ctx, string name, int opId, string frontendId)
     {
-        string cacheKey = $"{opId}_{name}";
+        string cacheKey = !string.IsNullOrEmpty(frontendId) ? $"fe_c_{frontendId}" : $"{opId}_{name}";
         if (_countriesCache.TryGetValue(cacheKey, out int id)) return id;
 
-        var entity = await ctx.Countries.FirstOrDefaultAsync(c => c.Name == name && c.OperatorId == opId);
+        var entity = !string.IsNullOrEmpty(frontendId)
+            ? await ctx.Countries.FirstOrDefaultAsync(c => c.FrontendId == frontendId)
+            : await ctx.Countries.FirstOrDefaultAsync(c => c.Name == name && c.OperatorId == opId);
+
         if (entity == null)
         {
-            entity = new CountryEntity { Name = name, OperatorId = opId, FrontendId = string.Empty };
+            entity = new CountryEntity { Name = name, OperatorId = opId, FrontendId = frontendId };
             await ctx.Countries.AddAsync(entity);
             await ctx.SaveChangesAsync();
         }
+        else if (string.IsNullOrEmpty(entity.FrontendId) && !string.IsNullOrEmpty(frontendId))
+        {
+            entity.FrontendId = frontendId;
+            await ctx.SaveChangesAsync();
+        }
+
         _countriesCache.TryAdd(cacheKey, entity.Id);
         return entity.Id;
     }
 
-    private async Task<int> GetOrAddTourAsync(DbTourParser ctx, string name, int countryId)
+    private async Task<int> GetOrAddTourAsync(DbTourParser ctx, string name, int countryId, string frontendId)
     {
-        string cacheKey = $"{countryId}_{name}";
+        string cacheKey = !string.IsNullOrEmpty(frontendId) ? $"fe_t_{frontendId}" : $"{countryId}_{name}";
         if (_toursCache.TryGetValue(cacheKey, out int id)) return id;
 
-        var entity = await ctx.Tours.FirstOrDefaultAsync(t => t.Name == name && t.CountryId == countryId);
+        var entity = !string.IsNullOrEmpty(frontendId)
+            ? await ctx.Tours.FirstOrDefaultAsync(t => t.FrontendId == frontendId)
+            : await ctx.Tours.FirstOrDefaultAsync(t => t.Name == name && t.CountryId == countryId);
+
         if (entity == null)
         {
-            entity = new TourEntity { Name = name, CountryId = countryId, FrontendId = string.Empty };
+            entity = new TourEntity { Name = name, CountryId = countryId, FrontendId = frontendId };
             await ctx.Tours.AddAsync(entity);
             await ctx.SaveChangesAsync();
         }
+        else if (string.IsNullOrEmpty(entity.FrontendId) && !string.IsNullOrEmpty(frontendId))
+        {
+            entity.FrontendId = frontendId;
+            await ctx.SaveChangesAsync();
+        }
+
         _toursCache.TryAdd(cacheKey, entity.Id);
         return entity.Id;
     }
 
-    private async Task<int> GetOrAddRegionAsync(DbTourParser ctx, string name, int tourId)
+    private async Task<int> GetOrAddRegionAsync(DbTourParser ctx, string name, int tourId, string frontendId)
     {
-        string cacheKey = $"{tourId}_{name}";
+        string cacheKey = !string.IsNullOrEmpty(frontendId) ? $"fe_r_{frontendId}" : $"{tourId}_{name}";
         if (_regionsCache.TryGetValue(cacheKey, out int id)) return id;
 
-        var entity = await ctx.Regions.FirstOrDefaultAsync(r => r.Name == name && r.TourId == tourId);
+        var entity = !string.IsNullOrEmpty(frontendId)
+            ? await ctx.Regions.FirstOrDefaultAsync(r => r.FrontendId == frontendId)
+            : await ctx.Regions.FirstOrDefaultAsync(r => r.Name == name && r.TourId == tourId);
+
         if (entity == null)
         {
-            entity = new RegionEntity { Name = name, TourId = tourId, FrontendId = string.Empty };
+            entity = new RegionEntity { Name = name, TourId = tourId, FrontendId = frontendId };
             await ctx.Regions.AddAsync(entity);
             await ctx.SaveChangesAsync();
         }
+        else if (string.IsNullOrEmpty(entity.FrontendId) && !string.IsNullOrEmpty(frontendId))
+        {
+            entity.FrontendId = frontendId;
+            await ctx.SaveChangesAsync();
+        }
+
         _regionsCache.TryAdd(cacheKey, entity.Id);
         return entity.Id;
     }
 
-    private async Task<int> GetOrAddHotelAsync(DbTourParser ctx, string name, int regionId)
+    private async Task<int> GetOrAddHotelAsync(DbTourParser ctx, string name, int regionId, string frontendId)
     {
-        string cacheKey = $"{regionId}_{name}";
+        string cacheKey = !string.IsNullOrEmpty(frontendId) ? $"fe_{frontendId}" : $"{regionId}_{name}";
+
         if (_hotelsCache.TryGetValue(cacheKey, out int id)) return id;
 
-        var entity = await ctx.Hotels.FirstOrDefaultAsync(h => h.Name == name && h.RegionId == regionId);
+        var entity = !string.IsNullOrEmpty(frontendId)
+            ? await ctx.Hotels.FirstOrDefaultAsync(h => h.FrontendId == frontendId)
+            : await ctx.Hotels.FirstOrDefaultAsync(h => h.Name == name && h.RegionId == regionId);
+
         if (entity == null)
         {
-            entity = new HotelEntity { Name = name, RegionId = regionId, FrontendId = string.Empty };
+            entity = new HotelEntity
+            {
+                Name = name,
+                RegionId = regionId,
+                FrontendId = frontendId
+            };
             await ctx.Hotels.AddAsync(entity);
             await ctx.SaveChangesAsync();
         }
+        else if (string.IsNullOrEmpty(entity.FrontendId) && !string.IsNullOrEmpty(frontendId))
+        {
+            entity.FrontendId = frontendId;
+            await ctx.SaveChangesAsync();
+        }
+
         _hotelsCache.TryAdd(cacheKey, entity.Id);
         return entity.Id;
     }

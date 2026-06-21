@@ -21,6 +21,7 @@ using ParserService.ParserCore.Processing;
 using ParserService.ParserCore.References;
 using ParserService.ParserCore.References.Providers;
 using ParserService.ParserCore.Repositories;
+using ParserService.Reports.Json.Handlers;
 using Scalar.AspNetCore;
 using System.Text.Json;
 
@@ -71,6 +72,7 @@ builder.Services.AddScoped<ParserFactory>();
 builder.Services.AddScoped<ITourDataRepository, TourDataRepository>();
 builder.Services.AddScoped<OperatorConfigurationService>();
 builder.Services.AddScoped<GetOperatorsHandler>();
+builder.Services.AddScoped<ReportJsonHandler>();
 builder.Services.AddScoped<ParserRunnerHandler>();
 builder.Services.AddScoped<UpdateReferencesHandler>();
 builder.Services.AddHostedService<NatsSubscriptionWorker>();
@@ -125,5 +127,6 @@ app.MapGet("/", context => {
 });
 
 app.MapOperators();
+app.MapReports();
 
 app.Run();

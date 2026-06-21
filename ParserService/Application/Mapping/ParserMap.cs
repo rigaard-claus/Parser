@@ -5,6 +5,7 @@ using ParserService.Application.Messaging;
 using ParserService.Application.Models.Answers;
 using ParserService.Application.Models.Requests;
 using ParserService.ParserCore.References;
+using ParserService.Reports.Json.Handlers;
 
 namespace ParserService.Application.Mapping
 {
@@ -54,6 +55,24 @@ namespace ParserService.Application.Mapping
             .WithDescription("Запускает полный цикл обновления справочников (страны-туры-регионы) для всех провайдеров.")
             .Produces<UpdateReferencesAnswer>(StatusCodes.Status200OK)
             .Produces<UpdateReferencesAnswer>(StatusCodes.Status400BadRequest);
+        }
+
+        public static void MapReports(this WebApplication app)
+        {
+            var group = app.MapGroup("reports").WithTags("Reports");
+
+            group.MapPost("prices", async (INatsBus natsBus, [FromBody] PriceRequest request) =>
+            {
+                var result = await natsBus.RequestAsync<ReportJsonHandler, PriceRequest, PriceAnswer>(
+                    request
+                );
+                return result.Success ? Results.Ok(result) : Results.BadRequest(result);
+            })
+            .WithName("GetPriceReport")
+            .WithSummary("Получить отчет по ценам")
+            .WithDescription("Возвращает список цен с пейджингом и фильтрацией по стране и количеству ночей.")
+            .Produces<PriceAnswer>(StatusCodes.Status200OK)
+            .Produces<PriceAnswer>(StatusCodes.Status400BadRequest);
         }
     }
 }

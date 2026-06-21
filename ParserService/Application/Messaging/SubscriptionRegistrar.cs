@@ -3,6 +3,7 @@ using ParserService.Application.Handlers.Operators;
 using ParserService.Application.Models.Answers;
 using ParserService.Application.Models.Requests;
 using ParserService.ParserCore.References;
+using ParserService.Reports.Json.Handlers;
 
 namespace ParserService.Application.Messaging
 {
@@ -14,6 +15,7 @@ namespace ParserService.Application.Messaging
             {
                 () => SubscribeGeneric<GetOperatorsHandler, GetOperatorsRequest, GetOperatorsAnswer>(bus, sp, false),
                 () => SubscribeGeneric<UpdateReferencesHandler, UpdateReferencesRequest, UpdateReferencesAnswer>(bus, sp, false),
+                () => SubscribeGeneric<ReportJsonHandler, PriceRequest, PriceAnswer>(bus, sp, false),
                 () => SubscribeGeneric<ParserRunnerHandler, RunParserRequest, RunParserAnswer>(bus, sp, true)
             };
 
@@ -40,7 +42,7 @@ namespace ParserService.Application.Messaging
                 try
                 {
                     using var scope = sp.CreateScope();
-                    var handler = scope.ServiceProvider.GetRequiredService<THandler>(); // <--- ВОТ ТУТ ПАДАЕТ
+                    var handler = scope.ServiceProvider.GetRequiredService<THandler>();
 
                     dynamic dynamicHandler = handler;
                     return await (Task<TRes>)dynamicHandler.HandleAsync(req);

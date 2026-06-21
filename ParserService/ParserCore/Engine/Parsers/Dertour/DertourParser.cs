@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Playwright;
+﻿using Microsoft.Playwright;
 using Newtonsoft.Json.Linq;
 using ParserService.Application.Messaging;
 using ParserService.Application.Models.Messages;

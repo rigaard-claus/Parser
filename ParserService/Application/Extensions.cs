@@ -1,4 +1,7 @@
-﻿namespace ParserService.Application
+﻿using ParserService.Application.Models.Base;
+using Microsoft.EntityFrameworkCore;
+
+namespace ParserService.Application
 {
     public static class Extensions
     {
@@ -14,6 +17,18 @@
 
             // Возвращаем всегда простой формат: "handler.имя"
             return $"handler.{name.ToLower()}";
+        }
+
+        public static async Task<(List<T> Items, int TotalCount)> ToPagedListAsync<T>(
+        this IQueryable<T> query, int pageNumber, int pageSize)
+        {
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return (items, totalCount);
         }
     }
 }

@@ -21,7 +21,10 @@ using ParserService.ParserCore.Processing;
 using ParserService.ParserCore.References;
 using ParserService.ParserCore.References.Providers;
 using ParserService.ParserCore.Repositories;
+using ParserService.Reports.GoogleSheet.Handlers;
 using ParserService.Reports.Json.Handlers;
+using ParserService.Reports.Xlsx;
+using ParserService.Reports.Xml;
 using Scalar.AspNetCore;
 using System.Text.Json;
 
@@ -63,6 +66,8 @@ builder.Services.AddHttpClient("OperatorHttpClient", client =>
 
 });
 
+builder.Services.AddScoped<ReportXml>();
+builder.Services.AddScoped<ReportXlsx>();
 builder.Services.AddHostedService<OperatorInitializationService>();
 builder.Services.AddSingleton<IOperatorOptionsProvider, DertourOptionsProvider>();
 builder.Services.AddSingleton<IOperatorOptionsFactory, OperatorOptionsFactory>();
@@ -75,6 +80,7 @@ builder.Services.AddScoped<GetOperatorsHandler>();
 builder.Services.AddScoped<ReportJsonHandler>();
 builder.Services.AddScoped<ParserRunnerHandler>();
 builder.Services.AddScoped<UpdateReferencesHandler>();
+builder.Services.AddScoped<ReportGoogleSheetHandler>();
 builder.Services.AddHostedService<NatsSubscriptionWorker>();
 builder.Services.AddHostedService<ErrorLoggingWorker>();
 builder.Services.AddSingleton<INatsBus, NatsBus>();
@@ -100,6 +106,8 @@ builder.Services.AddSingleton<IPlaywrightProvider>(sp =>
 builder.Services.AddScoped<IPageProcessor, PageProcessor>();
 builder.Services.AddScoped<ReferenceProcessor>();
 builder.Services.AddScoped<ErrorLoggingService>();
+
+builder.Services.AddSingleton(new GoogleSheetsService(builder.Configuration));
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();

@@ -17,6 +17,7 @@ Thumbs.db
 
 # Секреты локальной разработки
 .env
+ParserService/credentials.json
 
 project_map.txt
 output.txt

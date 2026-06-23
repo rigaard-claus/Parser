@@ -3,6 +3,7 @@ using ParserService.Application.Handlers.Operators;
 using ParserService.Application.Models.Answers;
 using ParserService.Application.Models.Requests;
 using ParserService.ParserCore.References;
+using ParserService.Reports.GoogleSheet.Handlers;
 using ParserService.Reports.Json.Handlers;
 
 namespace ParserService.Application.Messaging
@@ -16,7 +17,8 @@ namespace ParserService.Application.Messaging
                 () => SubscribeGeneric<GetOperatorsHandler, GetOperatorsRequest, GetOperatorsAnswer>(bus, sp, false),
                 () => SubscribeGeneric<UpdateReferencesHandler, UpdateReferencesRequest, UpdateReferencesAnswer>(bus, sp, false),
                 () => SubscribeGeneric<ReportJsonHandler, PriceRequest, PriceAnswer>(bus, sp, false),
-                () => SubscribeGeneric<ParserRunnerHandler, RunParserRequest, RunParserAnswer>(bus, sp, true)
+                () => SubscribeGeneric<ParserRunnerHandler, RunParserRequest, RunParserAnswer>(bus, sp, true),
+                () => SubscribeGeneric<ReportGoogleSheetHandler, PriceRequest, PriceGoogleSheetUrlAnswer>(bus, sp, false)
             };
 
             foreach (var subscribeAction in handlers)

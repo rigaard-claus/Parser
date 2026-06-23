@@ -5,7 +5,10 @@ using ParserService.Application.Messaging;
 using ParserService.Application.Models.Answers;
 using ParserService.Application.Models.Requests;
 using ParserService.ParserCore.References;
+using ParserService.Reports.GoogleSheet.Handlers;
 using ParserService.Reports.Json.Handlers;
+using ParserService.Reports.Xlsx;
+using ParserService.Reports.Xml;
 
 namespace ParserService.Application.Mapping
 {
@@ -73,6 +76,52 @@ namespace ParserService.Application.Mapping
             .WithDescription("Возвращает список цен с пейджингом и фильтрацией по стране и количеству ночей.")
             .Produces<PriceAnswer>(StatusCodes.Status200OK)
             .Produces<PriceAnswer>(StatusCodes.Status400BadRequest);
+
+            group.MapPost("export/google", async (INatsBus natsBus, [FromBody] PriceRequest request) =>
+                {
+                    var result = await natsBus.RequestAsync<ReportGoogleSheetHandler, PriceRequest, PriceGoogleSheetUrlAnswer>(
+                        request
+                    );
+
+                    return result.Success ? Results.Ok(result) : Results.BadRequest(result);
+                })
+            .WithName("ExportPricesToGoogleSheets")
+            .WithSummary("Экспорт цен в Google Sheets")
+            .WithDescription("Создает таблицу в Google Sheets, наполняет её данными и возвращает публичную ссылку.")
+            .Produces<PriceGoogleSheetUrlAnswer>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound);
+
+            group.MapPost("export/excel", async (ReportXlsx reportGenerator, [FromBody] PriceRequest request) =>
+            {
+                var fileBytes = await reportGenerator.GetExcelReport(request);
+
+                var file = fileBytes != null ? Results.File(
+                    fileBytes,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    $"PriceReport_{DateTime.Now:yyyyMMddHHmm}.xlsx"
+                ) : null;
+
+                return file;
+            })
+            .WithName("ExportPricesToExcel")
+            .WithSummary("Экспорт цен в Excel файл")
+            .Produces(StatusCodes.Status200OK, contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            .Produces(StatusCodes.Status400BadRequest);
+
+            group.MapPost("export/xml", async (ReportXml reportGenerator, [FromBody] PriceRequest request) =>
+            {
+                var fileBytes = await reportGenerator.GetXmlReport(request);
+
+                return fileBytes != null ? Results.File(
+                    fileBytes,
+                    "application/xml",
+                    $"PriceReport_{DateTime.Now:yyyyMMddHHmm}.xml"
+                ) : null;
+            })
+            .WithName("ExportPricesToXml")
+            .WithSummary("Экспорт цен в XML дерево")
+            .Produces(StatusCodes.Status200OK, contentType: "application/xml")
+            .Produces(StatusCodes.Status400BadRequest);
         }
     }
 }

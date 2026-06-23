@@ -7,4 +7,9 @@ namespace ParserService.Application.Models.Answers
     {
         public List<ReportPrice> Result {  get; set; }
     }
+
+    public record PriceGoogleSheetUrlAnswer : PagingAnswer
+    {
+        public string GoogleSheetUrl { get; set; } = string.Empty;
+    }
 }

@@ -1,4 +1,5 @@
 using dotenv.net;
+using Elastic.Clients.Elasticsearch;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using NATS.Client.Core;
@@ -12,6 +13,8 @@ using ParserService.Application.Messaging;
 using ParserService.Application.Services;
 using ParserService.Data;
 using ParserService.Data.Contexts;
+using ParserService.ElasticSearch.Handlers;
+using ParserService.ElasticSearch.Services;
 using ParserService.ParserCore;
 using ParserService.ParserCore.Engine.Parsers;
 using ParserService.ParserCore.Engine.Parsers.Dertour;
@@ -32,7 +35,6 @@ var hostName = Environment.MachineName;
 var processId = Environment.ProcessId;
 var stage = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
 
-//AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 DotEnv.Load(new DotEnvOptions().WithProbeForEnv());
 
 var builder = WebApplication.CreateBuilder(args);
@@ -66,6 +68,14 @@ builder.Services.AddHttpClient("OperatorHttpClient", client =>
 
 });
 
+var elasticUri = builder.Configuration["Elasticsearch:Uri"];
+var settings = new ElasticsearchClientSettings(new Uri(elasticUri))
+    .DefaultIndex("default_index")
+    .EnableDebugMode();
+
+builder.Services.AddSingleton(new ElasticsearchClient(settings));
+builder.Services.AddHostedService<ElasticSyncService>();
+
 builder.Services.AddScoped<ReportXml>();
 builder.Services.AddScoped<ReportXlsx>();
 builder.Services.AddHostedService<OperatorInitializationService>();
@@ -81,6 +91,7 @@ builder.Services.AddScoped<ReportJsonHandler>();
 builder.Services.AddScoped<ParserRunnerHandler>();
 builder.Services.AddScoped<UpdateReferencesHandler>();
 builder.Services.AddScoped<ReportGoogleSheetHandler>();
+builder.Services.AddScoped<SearchPriceHandler>();
 builder.Services.AddHostedService<NatsSubscriptionWorker>();
 builder.Services.AddHostedService<ErrorLoggingWorker>();
 builder.Services.AddSingleton<INatsBus, NatsBus>();
@@ -135,6 +146,7 @@ app.MapGet("/", context => {
 });
 
 app.MapOperators();
+app.MapSearch();
 app.MapReports();
 
 app.Run();

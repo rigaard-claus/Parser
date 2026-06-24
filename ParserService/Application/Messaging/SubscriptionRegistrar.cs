@@ -2,6 +2,7 @@
 using ParserService.Application.Handlers.Operators;
 using ParserService.Application.Models.Answers;
 using ParserService.Application.Models.Requests;
+using ParserService.ElasticSearch.Handlers;
 using ParserService.ParserCore.References;
 using ParserService.Reports.GoogleSheet.Handlers;
 using ParserService.Reports.Json.Handlers;
@@ -18,7 +19,8 @@ namespace ParserService.Application.Messaging
                 () => SubscribeGeneric<UpdateReferencesHandler, UpdateReferencesRequest, UpdateReferencesAnswer>(bus, sp, false),
                 () => SubscribeGeneric<ReportJsonHandler, PriceRequest, PriceAnswer>(bus, sp, false),
                 () => SubscribeGeneric<ParserRunnerHandler, RunParserRequest, RunParserAnswer>(bus, sp, true),
-                () => SubscribeGeneric<ReportGoogleSheetHandler, PriceRequest, PriceGoogleSheetUrlAnswer>(bus, sp, false)
+                () => SubscribeGeneric<ReportGoogleSheetHandler, PriceRequest, PriceGoogleSheetUrlAnswer>(bus, sp, false),
+                () => SubscribeGeneric<SearchPriceHandler, PriceSearchRequest, PriceAnswer> (bus, sp, false)
             };
 
             foreach (var subscribeAction in handlers)

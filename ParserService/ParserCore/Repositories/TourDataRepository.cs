@@ -1,14 +1,17 @@
 ﻿using AutoMapper;
+using Elastic.Clients.Elasticsearch;
 using Microsoft.EntityFrameworkCore;
 using ParserService.Data.Contexts;
 using ParserService.Data.Entities;
+using ParserService.ElasticSearch.Models;
 using ParserService.ParserCore.Models;
 using System.Collections.Concurrent;
-using static System.Runtime.InteropServices.JavaScript.JSType;
+using System.Net;
+using static ParserService.ElasticSearch.Models.ElasticIndices;
 
 namespace ParserService.ParserCore.Repositories;
 
-public class TourDataRepository(IMapper mapper, IDbContextFactory<DbTourParser> contextFactory) : ITourDataRepository
+public class TourDataRepository(ElasticsearchClient esClient, IMapper mapper, IDbContextFactory<DbTourParser> contextFactory) : ITourDataRepository
 {
     private static readonly ConcurrentDictionary<string, int> _countriesCache = new();
     private static readonly ConcurrentDictionary<string, int> _toursCache = new();
@@ -24,81 +27,139 @@ public class TourDataRepository(IMapper mapper, IDbContextFactory<DbTourParser> 
 
         int operatorId = (int)parsedTour.OperatorId;
 
-        int depCountryId = await GetOrAddCountryAsync(context, parsedTour.DepartureCountry, operatorId, parsedTour.DepartureCountryFrontendId);
-        int depRegionId = await GetOrAddRegionAsync(context, parsedTour.DepartureRegion, depCountryId, parsedTour.DepartureRegionFrontendId);
+        var (depCountryId, isNewDC) = await GetOrAddCountryAsync(context, parsedTour.DepartureCountry, operatorId, parsedTour.DepartureCountryFrontendId);
+        var (depTourId, isNewDT) = await GetOrAddTourAsync(context, "Default departure", depCountryId, "n/a");
+        var (depRegionId, isNewDR) = await GetOrAddRegionAsync(context, parsedTour.DepartureRegion, depTourId, parsedTour.DepartureRegionFrontendId);
 
-        int arrCountryId = await GetOrAddCountryAsync(context, parsedTour.ArrivalCountry, operatorId, parsedTour.ArrivalCountryFrontendId);
-        int arrTourId = await GetOrAddTourAsync(context, parsedTour.ArrivalTour, arrCountryId, parsedTour.ArrivalTourFrontendId);
-        int arrRegionId = await GetOrAddRegionAsync(context, parsedTour.ArrivalRegion, arrTourId, parsedTour.ArrivalRegionFrontendId);
+        var (arrCountryId, isNewCountry) = await GetOrAddCountryAsync(context, parsedTour.ArrivalCountry, operatorId, parsedTour.ArrivalCountryFrontendId);
+        var (arrTourId, isNewTour) = await GetOrAddTourAsync(context, parsedTour.ArrivalTour, arrCountryId, parsedTour.ArrivalTourFrontendId);
+        var (arrRegionId, isNewRegion) = await GetOrAddRegionAsync(context, parsedTour.ArrivalRegion, arrTourId, parsedTour.ArrivalRegionFrontendId);
 
-        int hotelId = await GetOrAddHotelAsync(context, parsedTour.HotelName, arrRegionId, parsedTour.HotelFrontendId);
+        var (hotelId, isNewHotel) = await GetOrAddHotelAsync(context, parsedTour.HotelName, arrRegionId, parsedTour.HotelFrontendId);
         int placementId = await GetOrAddPlacementAsync(context, parsedTour.PlacementName, operatorId);
         int currencyId = await GetOrAddCurrencyAsync(context, parsedTour.CurrencyCode, operatorId);
 
         int priceTypeId = await GetOrAddPriceTypeAsync(context, depCountryId, depRegionId, arrCountryId, arrRegionId, hotelId);
 
-        // 3. Сохранение цены
-        var existingPrice = await context.Prices
+        PriceEntity dbPrice = await context.Prices
             .FirstOrDefaultAsync(p => p.PriceTypeId == priceTypeId && p.Date == parsedTour.Date && p.Nights == parsedTour.Nights);
 
-        if (existingPrice != null)
+        var isNewPrice = false;
+        if (dbPrice != null)
         {
-            existingPrice.Price = parsedTour.Price;
-            existingPrice.PlacementId = placementId;
-            existingPrice.CurrencyId = currencyId;
-            existingPrice.UpdatedAt = DateTime.UtcNow;
-            context.Prices.Update(existingPrice);
+            dbPrice.Price = parsedTour.Price;
+            dbPrice.PlacementId = placementId;
+            dbPrice.CurrencyId = currencyId;
+            dbPrice.UpdatedAt = DateTime.UtcNow;
+            context.Prices.Update(dbPrice);
         }
         else
         {
-            var newPrice = new Price
+            dbPrice = new PriceEntity
             {
                 PriceTypeId = priceTypeId,
                 PlacementId = placementId,
                 CurrencyId = currencyId,
                 Date = parsedTour.Date,
-                PriceValue = parsedTour.Price,
+                Price = parsedTour.Price,
                 Nights = parsedTour.Nights,
                 UpdatedAt = DateTime.UtcNow
             };
-            newPrice.Date = DateTime.SpecifyKind(newPrice.Date, DateTimeKind.Utc);
+            dbPrice.Date = DateTime.SpecifyKind(dbPrice.Date, DateTimeKind.Utc);
 
-            await context.Prices.AddAsync(mapper.Map<PriceEntity>(newPrice));
+            await context.Prices.AddAsync(dbPrice);
+            isNewPrice = true;
         }
 
         await context.SaveChangesAsync();
+
+        if (isNewPrice)
+            await AddElasticDocument(IndexData.Prices, dbPrice.Id, parsedTour);
+        if (isNewHotel)
+            await AddElasticDocument(IndexData.Hotels, hotelId, parsedTour);
+        if(isNewRegion)
+            await AddElasticDocument(IndexData.Regions, arrRegionId, parsedTour);
+        if(isNewTour)
+            await AddElasticDocument(IndexData.Tours, arrTourId, parsedTour);
+        if(isNewCountry)
+            await AddElasticDocument(IndexData.Countries, arrCountryId, parsedTour);
     }
 
-    private async Task<int> GetOperatorIdFromDirectionAsync(DbTourParser ctx, int directionId)
+    private async Task AddElasticDocument(IndexData index, long entityId, ParsedTour tour)
     {
-        var direction = await ctx.Directions
-            .Include(d => d.ArrivalRegion)
-            .ThenInclude(r => r.Tour)
-            .ThenInclude(t => t.Country)
-            .FirstOrDefaultAsync(d => d.Id == directionId);
+        string elasticId = index == IndexData.Prices
+            ? $"price_{entityId}"
+            : Guid.NewGuid().ToString();
 
-        if (direction?.ArrivalRegion?.Tour?.Country == null)
-            throw new Exception($"Не удалось найти цепочку связей для направления {directionId}");
+        object doc = index switch
+        {
+            IndexData.Prices => new PriceDocument(
+                Id: elasticId,
+                PriceId: entityId,
+                Operator: tour.OperatorName,
+                Country: tour.ArrivalCountry,
+                Tour: tour.ArrivalTour,
+                Region: tour.ArrivalRegion,
+                Hotel: tour.HotelName,
+                Date: tour.Date,
+                Price: tour.Price,
+                Currency: tour.CurrencyCode
+            ),
 
-        return direction.ArrivalRegion.Tour.Country.OperatorId;
+            IndexData.Hotels => new HotelDocument(
+                Id: elasticId,
+                HotelId: entityId,
+                Name: tour.HotelName,
+                RegionName: tour.ArrivalRegion,
+                TourName: tour.ArrivalTour,
+                CountryName: tour.ArrivalCountry
+            ),
+
+            IndexData.Regions => new RegionDocument(
+                Id: elasticId,
+                RegionId: entityId,
+                Name: tour.ArrivalRegion,
+                TourName: tour.ArrivalTour
+            ),
+
+            IndexData.Tours => new TourDocument(
+                Id: elasticId,
+                TourId: entityId,
+                Name: tour.ArrivalTour,
+                CountryName: tour.ArrivalCountry
+            ),
+
+            IndexData.Countries => new CountryDocument(
+                Id: elasticId,
+                CountryId: entityId,
+                Name: tour.ArrivalCountry,
+                Operator: tour.OperatorName
+            ),
+
+            _ => throw new ArgumentException("Неподдерживаемый тип индекса")
+        };
+
+        _ = esClient.IndexAsync(doc, idx => idx
+            .Index(index.GetName())
+            .Id(elasticId)
+        );
     }
 
-    // --- Хелперы (теперь работают с OperatorId) ---
-
-    private async Task<int> GetOrAddCountryAsync(DbTourParser ctx, string name, int opId, string frontendId)
+    private async Task<(int Id, bool IsNew)> GetOrAddCountryAsync(DbTourParser ctx, string name, int opId, string frontendId)
     {
         string cacheKey = !string.IsNullOrEmpty(frontendId) ? $"fe_c_{frontendId}" : $"{opId}_{name}";
-        if (_countriesCache.TryGetValue(cacheKey, out int id)) return id;
+        if (_countriesCache.TryGetValue(cacheKey, out int id)) return (id, false);
 
         var entity = !string.IsNullOrEmpty(frontendId)
             ? await ctx.Countries.FirstOrDefaultAsync(c => c.FrontendId == frontendId)
             : await ctx.Countries.FirstOrDefaultAsync(c => c.Name == name && c.OperatorId == opId);
-
+        var newCountry = false;
         if (entity == null)
         {
             entity = new CountryEntity { Name = name, OperatorId = opId, FrontendId = frontendId };
             await ctx.Countries.AddAsync(entity);
             await ctx.SaveChangesAsync();
+            newCountry = true;
         }
         else if (string.IsNullOrEmpty(entity.FrontendId) && !string.IsNullOrEmpty(frontendId))
         {
@@ -107,23 +168,25 @@ public class TourDataRepository(IMapper mapper, IDbContextFactory<DbTourParser> 
         }
 
         _countriesCache.TryAdd(cacheKey, entity.Id);
-        return entity.Id;
+        return (entity.Id, newCountry);
     }
 
-    private async Task<int> GetOrAddTourAsync(DbTourParser ctx, string name, int countryId, string frontendId)
+    private async Task<(int Id, bool IsNew)> GetOrAddTourAsync(DbTourParser ctx, string name, int countryId, string frontendId)
     {
         string cacheKey = !string.IsNullOrEmpty(frontendId) ? $"fe_t_{frontendId}" : $"{countryId}_{name}";
-        if (_toursCache.TryGetValue(cacheKey, out int id)) return id;
+        if (_toursCache.TryGetValue(cacheKey, out int id)) return (id, false);
 
         var entity = !string.IsNullOrEmpty(frontendId)
             ? await ctx.Tours.FirstOrDefaultAsync(t => t.FrontendId == frontendId)
             : await ctx.Tours.FirstOrDefaultAsync(t => t.Name == name && t.CountryId == countryId);
 
+        bool newTour = false;
         if (entity == null)
         {
             entity = new TourEntity { Name = name, CountryId = countryId, FrontendId = frontendId };
             await ctx.Tours.AddAsync(entity);
             await ctx.SaveChangesAsync();
+            newTour = true;
         }
         else if (string.IsNullOrEmpty(entity.FrontendId) && !string.IsNullOrEmpty(frontendId))
         {
@@ -132,23 +195,25 @@ public class TourDataRepository(IMapper mapper, IDbContextFactory<DbTourParser> 
         }
 
         _toursCache.TryAdd(cacheKey, entity.Id);
-        return entity.Id;
+        return (entity.Id, newTour);
     }
 
-    private async Task<int> GetOrAddRegionAsync(DbTourParser ctx, string name, int tourId, string frontendId)
+    private async Task<(int Id, bool IsNew)> GetOrAddRegionAsync(DbTourParser ctx, string name, int tourId, string frontendId)
     {
         string cacheKey = !string.IsNullOrEmpty(frontendId) ? $"fe_r_{frontendId}" : $"{tourId}_{name}";
-        if (_regionsCache.TryGetValue(cacheKey, out int id)) return id;
+        if (_regionsCache.TryGetValue(cacheKey, out int id)) return (id, false);
 
         var entity = !string.IsNullOrEmpty(frontendId)
             ? await ctx.Regions.FirstOrDefaultAsync(r => r.FrontendId == frontendId)
             : await ctx.Regions.FirstOrDefaultAsync(r => r.Name == name && r.TourId == tourId);
 
+        var newRegion = false;
         if (entity == null)
         {
             entity = new RegionEntity { Name = name, TourId = tourId, FrontendId = frontendId };
             await ctx.Regions.AddAsync(entity);
             await ctx.SaveChangesAsync();
+            newRegion = true;
         }
         else if (string.IsNullOrEmpty(entity.FrontendId) && !string.IsNullOrEmpty(frontendId))
         {
@@ -157,19 +222,20 @@ public class TourDataRepository(IMapper mapper, IDbContextFactory<DbTourParser> 
         }
 
         _regionsCache.TryAdd(cacheKey, entity.Id);
-        return entity.Id;
+        return (entity.Id, newRegion);
     }
 
-    private async Task<int> GetOrAddHotelAsync(DbTourParser ctx, string name, int regionId, string frontendId)
+    private async Task<(int Id, bool IsNew)> GetOrAddHotelAsync(DbTourParser ctx, string name, int regionId, string frontendId)
     {
         string cacheKey = !string.IsNullOrEmpty(frontendId) ? $"fe_{frontendId}" : $"{regionId}_{name}";
 
-        if (_hotelsCache.TryGetValue(cacheKey, out int id)) return id;
+        if (_hotelsCache.TryGetValue(cacheKey, out int id)) return (id, false);
 
         var entity = !string.IsNullOrEmpty(frontendId)
             ? await ctx.Hotels.FirstOrDefaultAsync(h => h.FrontendId == frontendId)
             : await ctx.Hotels.FirstOrDefaultAsync(h => h.Name == name && h.RegionId == regionId);
 
+        var newHotel = false;
         if (entity == null)
         {
             entity = new HotelEntity
@@ -180,6 +246,7 @@ public class TourDataRepository(IMapper mapper, IDbContextFactory<DbTourParser> 
             };
             await ctx.Hotels.AddAsync(entity);
             await ctx.SaveChangesAsync();
+            newHotel = true;
         }
         else if (string.IsNullOrEmpty(entity.FrontendId) && !string.IsNullOrEmpty(frontendId))
         {
@@ -188,7 +255,8 @@ public class TourDataRepository(IMapper mapper, IDbContextFactory<DbTourParser> 
         }
 
         _hotelsCache.TryAdd(cacheKey, entity.Id);
-        return entity.Id;
+
+        return (entity.Id, newHotel);
     }
 
     private async Task<int> GetOrAddPlacementAsync(DbTourParser ctx, string name, int opId)

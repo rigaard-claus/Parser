@@ -4,6 +4,7 @@ using ParserService.Application.Handlers.Operators;
 using ParserService.Application.Messaging;
 using ParserService.Application.Models.Answers;
 using ParserService.Application.Models.Requests;
+using ParserService.ElasticSearch.Handlers;
 using ParserService.ParserCore.References;
 using ParserService.Reports.GoogleSheet.Handlers;
 using ParserService.Reports.Json.Handlers;
@@ -58,6 +59,21 @@ namespace ParserService.Application.Mapping
             .WithDescription("Запускает полный цикл обновления справочников (страны-туры-регионы) для всех провайдеров.")
             .Produces<UpdateReferencesAnswer>(StatusCodes.Status200OK)
             .Produces<UpdateReferencesAnswer>(StatusCodes.Status400BadRequest);
+        }
+
+        public static void MapSearch(this WebApplication app)
+        {
+            var group = app.MapGroup("search").WithTags("Search");
+            group.MapPost("search", async (INatsBus natsBus, [FromBody] PriceSearchRequest request) =>
+            {
+                var result = await natsBus.RequestAsync<SearchPriceHandler, PriceSearchRequest, PriceAnswer>(
+                    request
+                );
+                return result.Success ? Results.Ok(result) : Results.BadRequest(result);
+            })
+            .WithName("SearchPrices")
+            .WithSummary("Полнотекстовый поиск по ценам")
+            .Produces<PriceAnswer>(StatusCodes.Status200OK);
         }
 
         public static void MapReports(this WebApplication app)

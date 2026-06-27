@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using ParserService.Application.Models.AI;
 using ParserService.Data.Entities;
 using ParserService.ParserCore.Models;
 
@@ -18,6 +19,11 @@ namespace ParserService.Mappings
             CreateMap<Currency, CurrencyEntity>().ReverseMap();
             CreateMap<Placement, PlacementEntity>().ReverseMap();
             CreateMap<PriceType, PriceTypeEntity>().ReverseMap();
+
+            CreateMap<AiRequestLogEntity, AiRequestLog>();
+            CreateMap<UserEntity, User>()
+                .ForMember(dest => dest.Requests, opt => opt.MapFrom(src => src.AiRequestLogs));
+            CreateMap<AiGlobalStatsEntity, AiGlobalStats>();
 
             CreateMap<Price, PriceEntity>()
                 .ForMember(dest => dest.Price, opt => opt.MapFrom(src => src.PriceValue))

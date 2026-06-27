@@ -6,6 +6,7 @@ using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.Serializers.Json;
 using ParserService.Application.Handlers;
+using ParserService.Application.Handlers.AI;
 using ParserService.Application.Handlers.Operators;
 using ParserService.Application.Infrastructure;
 using ParserService.Application.Mapping;
@@ -92,6 +93,9 @@ builder.Services.AddScoped<ParserRunnerHandler>();
 builder.Services.AddScoped<UpdateReferencesHandler>();
 builder.Services.AddScoped<ReportGoogleSheetHandler>();
 builder.Services.AddScoped<SearchPriceHandler>();
+builder.Services.AddScoped<AiUserHistoryHandler>();
+builder.Services.AddScoped<AiStatsHandler>();
+builder.Services.AddScoped<GetUsersHandler>();
 builder.Services.AddHostedService<NatsSubscriptionWorker>();
 builder.Services.AddHostedService<ErrorLoggingWorker>();
 builder.Services.AddSingleton<INatsBus, NatsBus>();
@@ -145,6 +149,7 @@ app.MapGet("/", context => {
     return Task.CompletedTask;
 });
 
+app.MapAi();
 app.MapOperators();
 app.MapSearch();
 app.MapReports();

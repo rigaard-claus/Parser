@@ -1,4 +1,6 @@
-﻿namespace ParserService.Application.Models.Requests
+﻿using ParserService.Application.Models.Base;
+
+namespace ParserService.Application.Models.Requests
 {
-    public record GetOperatorsRequest();
+    public record GetOperatorsRequest : PagingRequest { };
 }

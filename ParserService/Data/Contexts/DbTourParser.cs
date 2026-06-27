@@ -20,6 +20,9 @@ namespace ParserService.Data.Contexts
         public DbSet<DirectionEntity> Directions => Set<DirectionEntity>();
         public DbSet<PriceTypeEntity> PriceTypes => Set<PriceTypeEntity>();
         public DbSet<PriceEntity> Prices => Set<PriceEntity>();
+        public DbSet<UserEntity> Users => Set<UserEntity>();
+        public DbSet<AiRequestLogEntity> AiRequestLogs => Set<AiRequestLogEntity>();
+        public DbSet<AiGlobalStatsEntity> AiGlobalStats => Set<AiGlobalStatsEntity>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -195,6 +198,35 @@ namespace ParserService.Data.Contexts
 
                 entity.HasIndex(e => new { e.PriceTypeId, e.Date, e.Nights });
                 entity.HasIndex(e => e.UpdatedAt);
+            });
+
+            modelBuilder.Entity<UserEntity>(entity =>
+            {
+                entity.ToTable("users");
+                entity.HasKey(e => e.Guid);
+                entity.Property(e => e.DeviceId).IsRequired();
+                entity.HasIndex(e => e.DeviceId).IsUnique();
+            });
+
+            modelBuilder.Entity<AiRequestLogEntity>(entity =>
+            {
+                entity.ToTable("ai_request_logs");
+                entity.HasKey(e => e.Id);
+
+                entity.HasOne(e => e.User)
+                    .WithMany(u => u.AiRequestLogs)
+                    .HasForeignKey(e => e.UserGuid)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.CreatedAt);
+                entity.HasIndex(e => e.UserGuid);
+            });
+
+            modelBuilder.Entity<AiGlobalStatsEntity>(entity =>
+            {
+                entity.ToTable("ai_global_stats");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.LastUpdatedAt).IsRequired();
             });
         }
     }

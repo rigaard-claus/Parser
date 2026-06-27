@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Internal;
 using ParserService.Application.Messaging;
 using ParserService.Application.Models.Answers;
 using ParserService.Application.Models.Messages;
@@ -10,10 +11,11 @@ using System.Data;
 
 namespace ParserService.Application.Handlers.Operators
 {
-    public class GetOperatorsHandler(DbTourParser tourParser, IMapper mapper, INatsBus natsBus)
+    public class GetOperatorsHandler(IDbContextFactory<DbTourParser> contextFactory, IMapper mapper, INatsBus natsBus)
     {
         public async Task<GetOperatorsAnswer> HandleAsync(GetOperatorsRequest request)
         {
+            using var tourParser = await contextFactory.CreateDbContextAsync();
             var result = new GetOperatorsAnswer(new List<Operator>());
             try
             {

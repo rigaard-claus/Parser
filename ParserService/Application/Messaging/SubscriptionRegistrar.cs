@@ -1,4 +1,5 @@
 ﻿using ParserService.Application.Handlers;
+using ParserService.Application.Handlers.AI;
 using ParserService.Application.Handlers.Operators;
 using ParserService.Application.Models.Answers;
 using ParserService.Application.Models.Requests;
@@ -20,7 +21,10 @@ namespace ParserService.Application.Messaging
                 () => SubscribeGeneric<ReportJsonHandler, PriceRequest, PriceAnswer>(bus, sp, false),
                 () => SubscribeGeneric<ParserRunnerHandler, RunParserRequest, RunParserAnswer>(bus, sp, true),
                 () => SubscribeGeneric<ReportGoogleSheetHandler, PriceRequest, PriceGoogleSheetUrlAnswer>(bus, sp, false),
-                () => SubscribeGeneric<SearchPriceHandler, PriceSearchRequest, PriceAnswer> (bus, sp, false)
+                () => SubscribeGeneric<SearchPriceHandler, PriceSearchRequest, PriceAnswer> (bus, sp, false),
+                () => SubscribeGeneric<AiUserHistoryHandler, AiRequests.GetUserHistoryRequest, AiAnswers.UserHistoryAnswer>(bus, sp, false),
+                () => SubscribeGeneric<AiStatsHandler, AiRequests.GetGlobalStatsRequest, AiAnswers.GlobalStatsAnswer>(bus, sp, false),
+                () => SubscribeGeneric<GetUsersHandler, AiRequests.GetUsersRequest, AiAnswers.UserListAnswer>(bus, sp, false),
             };
 
             foreach (var subscribeAction in handlers)

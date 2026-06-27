@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ParserService.Data.Contexts;
@@ -11,9 +12,11 @@ using ParserService.Data.Contexts;
 namespace ParserService.Data.Migrations.TourParser
 {
     [DbContext(typeof(DbTourParser))]
-    partial class DbTourParserModelSnapshot : ModelSnapshot
+    [Migration("20260627142049_AddAiTrackingSystem")]
+    partial class AddAiTrackingSystem
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -24,12 +27,6 @@ namespace ParserService.Data.Migrations.TourParser
 
             modelBuilder.Entity("ParserService.Data.Entities.AiGlobalStatsEntity", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
                     b.Property<double>("AverageLatencyMs")
                         .HasColumnType("double precision");
 
@@ -44,8 +41,6 @@ namespace ParserService.Data.Migrations.TourParser
 
                     b.Property<long>("TotalRequests")
                         .HasColumnType("bigint");
-
-                    b.HasKey("Id");
 
                     b.ToTable("ai_global_stats", (string)null);
                 });

@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using ParserService.Application.Handlers;
+using ParserService.Application.Handlers.AI;
 using ParserService.Application.Handlers.Operators;
 using ParserService.Application.Messaging;
 using ParserService.Application.Models.Answers;
@@ -138,6 +139,50 @@ namespace ParserService.Application.Mapping
             .WithSummary("Экспорт цен в XML дерево")
             .Produces(StatusCodes.Status200OK, contentType: "application/xml")
             .Produces(StatusCodes.Status400BadRequest);
+        }
+
+        public static void MapAi(this WebApplication app)
+        {
+            var group = app.MapGroup("ai").WithTags("AI");
+
+            // 1. Получение общей статистики
+            group.MapGet("stats", async (INatsBus natsBus) =>
+            {
+                var result = await natsBus.RequestAsync<AiStatsHandler, AiRequests.GetGlobalStatsRequest, AiAnswers.GlobalStatsAnswer>(
+                    new AiRequests.GetGlobalStatsRequest()
+                );
+                return Results.Ok(result);
+            })
+            .WithName("GetAiStats")
+            .WithSummary("Получить глобальную статистику AI")
+            .WithDescription("Возвращает накопленные данные: токены, количество запросов и среднюю скорость работы.")
+            .Produces<AiAnswers.GlobalStatsAnswer>(StatusCodes.Status200OK);
+
+
+            group.MapPost("history", async (INatsBus natsBus, [FromBody] AiRequests.GetUserHistoryRequest request) =>
+            {
+                var result = await natsBus.RequestAsync<AiUserHistoryHandler, AiRequests.GetUserHistoryRequest, AiAnswers.UserHistoryAnswer>(
+                    request
+                );
+
+                return result != null ? Results.Ok(result) : Results.NotFound();
+            })
+            .WithName("GetAiUserHistory")
+            .WithSummary("Получить историю запросов пользователя")
+            .WithDescription("Возвращает список запросов. Если GetAllHistory = false, возвращает только 10 последних записей для контекста.")
+            .Produces<AiAnswers.UserHistoryAnswer>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound);
+
+            group.MapPost("users", async (INatsBus natsBus, [FromBody] AiRequests.GetUsersRequest request) =>
+            {
+                var result = await natsBus.RequestAsync<GetUsersHandler, AiRequests.GetUsersRequest, AiAnswers.UserListAnswer>(
+                    request
+                );
+                return Results.Ok(result);
+            })
+            .WithName("GetUsersList")
+            .WithSummary("Список всех пользователей системы")
+            .Produces<AiAnswers.UserListAnswer>(StatusCodes.Status200OK);
         }
     }
 }

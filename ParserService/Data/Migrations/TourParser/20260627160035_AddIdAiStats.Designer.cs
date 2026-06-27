@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ParserService.Data.Contexts;
@@ -11,9 +12,11 @@ using ParserService.Data.Contexts;
 namespace ParserService.Data.Migrations.TourParser
 {
     [DbContext(typeof(DbTourParser))]
-    partial class DbTourParserModelSnapshot : ModelSnapshot
+    [Migration("20260627160035_AddIdAiStats")]
+    partial class AddIdAiStats
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

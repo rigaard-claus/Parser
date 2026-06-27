@@ -7,5 +7,7 @@ namespace ParserService.Application.Models.Requests
         public record GetGlobalStatsRequest();
         public record GetUserHistoryRequest(Guid UserGuid, bool GetAllHistory);
         public record GetUsersRequest: PagingRequest { };
+
+        public record SendUserMessageRequest(string DeviceId, string Message);
     }
 }

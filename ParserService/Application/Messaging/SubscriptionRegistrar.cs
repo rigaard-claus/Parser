@@ -25,6 +25,7 @@ namespace ParserService.Application.Messaging
                 () => SubscribeGeneric<AiUserHistoryHandler, AiRequests.GetUserHistoryRequest, AiAnswers.UserHistoryAnswer>(bus, sp, false),
                 () => SubscribeGeneric<AiStatsHandler, AiRequests.GetGlobalStatsRequest, AiAnswers.GlobalStatsAnswer>(bus, sp, false),
                 () => SubscribeGeneric<GetUsersHandler, AiRequests.GetUsersRequest, AiAnswers.UserListAnswer>(bus, sp, false),
+                () => SubscribeGeneric<SendMessageHandler, AiRequests.SendUserMessageRequest, AiAnswers.SendUserMessageAnswer>(bus, sp, false)
             };
 
             foreach (var subscribeAction in handlers)

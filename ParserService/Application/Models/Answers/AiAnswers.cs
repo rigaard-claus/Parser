@@ -20,5 +20,10 @@ namespace ParserService.Application.Models.Answers
         {
             public List<User> Result { get; set; }
         }
+
+        public record SendUserMessageAnswer : ParserServiceResponse
+        {
+            public string Response { get; set; }
+        };
     }
 }

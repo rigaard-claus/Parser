@@ -96,6 +96,7 @@ builder.Services.AddScoped<SearchPriceHandler>();
 builder.Services.AddScoped<AiUserHistoryHandler>();
 builder.Services.AddScoped<AiStatsHandler>();
 builder.Services.AddScoped<GetUsersHandler>();
+builder.Services.AddScoped<SendMessageHandler>();
 builder.Services.AddHostedService<NatsSubscriptionWorker>();
 builder.Services.AddHostedService<ErrorLoggingWorker>();
 builder.Services.AddSingleton<INatsBus, NatsBus>();

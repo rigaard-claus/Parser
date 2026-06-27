@@ -183,6 +183,17 @@ namespace ParserService.Application.Mapping
             .WithName("GetUsersList")
             .WithSummary("Список всех пользователей системы")
             .Produces<AiAnswers.UserListAnswer>(StatusCodes.Status200OK);
+
+            group.MapPost("message", async (INatsBus natsBus, [FromBody] AiRequests.SendUserMessageRequest request) =>
+            {
+                var result = await natsBus.RequestAsync<SendMessageHandler, AiRequests.SendUserMessageRequest, AiAnswers.SendUserMessageAnswer>(
+                    request
+                );
+                return result.Success ? Results.Ok(result) : Results.BadRequest(result);
+            })
+            .WithName("SendMessageToAi")
+            .WithSummary("Отправить сообщение пользователю")
+            .Produces<AiAnswers.SendUserMessageAnswer>(StatusCodes.Status200OK);
         }
     }
 }

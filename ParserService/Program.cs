@@ -1,3 +1,4 @@
+using AI.Interfaces;
 using dotenv.net;
 using Elastic.Clients.Elasticsearch;
 using Microsoft.EntityFrameworkCore;
@@ -5,6 +6,7 @@ using Microsoft.Playwright;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.Serializers.Json;
+using ParserService.AI.Agents;
 using ParserService.Application.Handlers;
 using ParserService.Application.Handlers.AI;
 using ParserService.Application.Handlers.Operators;
@@ -101,6 +103,10 @@ builder.Services.AddHostedService<NatsSubscriptionWorker>();
 builder.Services.AddHostedService<ErrorLoggingWorker>();
 builder.Services.AddSingleton<INatsBus, NatsBus>();
 builder.Services.AddSingleton<ISubscriptionRegistrar, SubscriptionRegistrar>();
+
+builder.Services.AddSingleton<IAiAgent, OllamaAgent>();
+builder.Services.AddScoped<UserTrackingService>();
+builder.Services.AddScoped<AiLoggingService>();
 
 var connectionString = builder.Configuration.GetConnectionString("PostgresConnection");
 builder.Services.AddPooledDbContextFactory<DbTourParser>(options =>

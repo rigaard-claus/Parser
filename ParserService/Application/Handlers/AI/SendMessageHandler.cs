@@ -1,25 +1,46 @@
-﻿using AutoMapper;
+﻿using AI.Interfaces;
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using ParserService.Application.Messaging;
 using ParserService.Application.Models.Answers;
 using ParserService.Application.Models.Messages;
 using ParserService.Application.Models.Requests;
+using ParserService.Application.Services;
 using ParserService.Data.Contexts;
 
 namespace ParserService.Application.Handlers.AI
 {
-    public class SendMessageHandler(IDbContextFactory<DbTourParser> contextFactory, IMapper mapper, INatsBus natsBus)
+    public class SendMessageHandler(
+        UserTrackingService userTrackingService,
+        AiLoggingService aiLoggingService,
+        IDbContextFactory<DbTourParser> contextFactory, 
+        IMapper mapper, 
+        INatsBus natsBus,
+        IAiAgent aiAgent)
     {
         public async Task<AiAnswers.SendUserMessageAnswer> HandleAsync(AiRequests.SendUserMessageRequest request)
         {
             try
             {
-                // TODO: 1. Проверить существование пользователя по DeviceId.
-                // TODO: 2. Если нет — создать запись в UserEntity.
-                // TODO: 3. Логика обращения к Ollama/Сакуре.
-                // TODO: 4. Логирование запроса и обновление статистики.
+                var user = await userTrackingService.GetOrCreateUserAsync(request.DeviceId);
 
-                return new AiAnswers.SendUserMessageAnswer { Success = true, Response = "Заглушка: сообщение получено" };
+                var response = await aiAgent.GetResponseAsync(request.Message, null);
+
+                await aiLoggingService.LogRequestAsync(user.Guid, request.Message, response, response.ModelName);
+
+                if (!response.IsSuccess)
+                {
+                    await natsBus.PublishErrorAsync(new LogErrorRequest(
+                        response.ErrorMessage ?? "Unknown AI Error",
+                        "AI Agent stack trace",
+                        DateTime.UtcNow));
+                }
+
+                return new AiAnswers.SendUserMessageAnswer 
+                { 
+                    Success = response.IsSuccess, 
+                    Response = response.Content
+                };
             }
             catch (Exception ex)
             {

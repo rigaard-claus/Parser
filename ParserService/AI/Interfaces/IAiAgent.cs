@@ -1,7 +1,9 @@
+using ParserService.AI.Models;
+
 namespace AI.Interfaces
 {
     public interface IAiAgent
     {
-        void PerformAction();
+        Task<AiResponse> GetResponseAsync(string prompt, string? modelName);
     }
 }

@@ -14,6 +14,7 @@
         public long LatencyMs { get; set; } 
 
         public string UserQuery { get; set; }
+        public string AiResponse { get; set; }
         public bool IsSuccess { get; set; }
 
         public string? ErrorMessage { get; set; }

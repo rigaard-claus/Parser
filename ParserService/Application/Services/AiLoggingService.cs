@@ -19,6 +19,7 @@ namespace ParserService.Application.Services
                 ModelName = modelName,
                 RequestType = "Chat",
                 UserQuery = query,
+                AiResponse = response.Content,
                 InputTokens = response.InputTokens,
                 OutputTokens = response.OutputTokens,
                 LatencyMs = response.LatencyMs,
